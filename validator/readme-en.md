@@ -9,7 +9,10 @@ Write validations like you do with `zod` / `yup`, but with high-frequency Chines
 - 🔗 **Chainable, declarative API** — `v.string().required().phone()`, reads like plain language
 - 🇨🇳 **China rules out of the box** — mobile number, ID card (with checksum), bank card (Luhn), license plate (incl. new-energy), unified social credit code, postal code
 - 📦 **Zero dependencies**, pure ArkTS
-- 🧩 **Whole-object validation** — validate an entire form at once and get per-field errors with paths
+- 🧩 **Object / array validation** — whole-form validation with per-field error paths (incl. array indices like `items.0.name`)
+- 🪆 **Deep nesting** — objects and arrays nested to any depth
+- ⏳ **Async validation** — `validateAsync` / `customAsync`, e.g. remote uniqueness checks (is a username / phone already registered)
+- 📝 **ArkUI form binding** — `FormValidator` controller that wires up to `TextInput` and other components in real time
 - 💬 **Chinese error messages** by default, every message overridable
 
 ## Installation
@@ -62,6 +65,92 @@ if (!result.valid) {
 }
 ```
 
+### Array
+
+```typescript
+import { v } from '@hmkit/validator';
+
+// Per-element validation + length constraints; error path carries the index
+v.array(v.string().phone()).validate(['13800138000', '123']);
+// { valid: false, errors: [{ path: '1', message: '请输入正确的手机号' }] }
+
+v.array(v.string()).min(1, 'At least one item').validate([]);
+// { valid: false, errors: [{ path: '', message: 'At least one item' }] }
+```
+
+### Deep nesting (object ↔ array, any depth)
+
+```typescript
+const orderSchema = v.object({
+  'items': v.array(v.object({
+    'name': v.string().required('Name required'),
+    'qty':  v.number().required().min(1, 'Qty >= 1'),
+  })).nonEmpty('At least one item'),
+});
+
+orderSchema.validate({ 'items': [{ 'name': '', 'qty': 0 }] });
+// errors: [
+//   { path: 'items.0.name', message: 'Name required' },
+//   { path: 'items.0.qty',  message: 'Qty >= 1' },
+// ]
+```
+
+### Async validation (remote uniqueness check)
+
+```typescript
+// customAsync runs only on validateAsync; the sync validate() ignores it
+const checkUsername = async (name: string): Promise<boolean> => {
+  return await api.isUsernameAvailable(name); // true = passes
+};
+
+const schema = v.string().required().min(3).customAsync(checkUsername, 'Username taken');
+const result = await schema.validateAsync('taken');
+// { valid: false, errors: [{ path: '', message: 'Username taken' }] }
+```
+
+### ArkUI form binding (FormValidator)
+
+```typescript
+import { v, FormValidator } from '@hmkit/validator';
+
+@Entry
+@Component
+struct RegisterForm {
+  private validator: FormValidator = new FormValidator({
+    'username': v.string().required('Username required').min(3),
+    'phone':    v.string().required().phone(),
+    'age':      v.number().required().integer().min(18, 'Must be 18+'),
+  });
+
+  @State username: string = '';
+  @State errors: Record<string, string> = {};
+
+  build() {
+    Column() {
+      TextInput({ placeholder: 'Username' })
+        .onChange((val: string) => {
+          this.username = val;
+          // Validate a single field on input; returns the error message (or null)
+          const msg = this.validator.validateField('username', val);
+          this.errors = msg === null ? {} as Record<string, string>
+                                     : { 'username': msg } as Record<string, string>;
+        })
+      if (this.errors['username'] !== undefined) {
+        Text(this.errors['username']).fontColor('#E64340')
+      }
+
+      Button('Submit').onClick(() => {
+        // Validate the whole form on submit; returns a field -> error map
+        const errs = this.validator.validateAll({ 'username': this.username });
+        this.errors = errs;
+      })
+    }
+  }
+}
+```
+
+> A full runnable example lives in `FormDemo.ets` under the repo's `entry` module.
+
 ## API
 
 ### `v` factory
@@ -71,6 +160,7 @@ if (!result.valid) {
 | `v.string()` | Create a string validator |
 | `v.number()` | Create a number validator |
 | `v.object(shape)` | Create an object validator; `shape` is `{ field: validator }` |
+| `v.array(element)` | Create an array validator; `element` is the per-element validator |
 
 ### StringSchema
 
@@ -87,6 +177,7 @@ if (!result.valid) {
 | `.plateNumber(msg?)` | License plate (incl. new-energy) |
 | `.creditCode(msg?)` | Unified social credit code |
 | `.postalCode(msg?)` | Postal code |
+| `.customAsync(fn, msg)` | Custom async rule (`fn` returns `Promise<boolean>`), runs only on `validateAsync` |
 
 ### NumberSchema
 
@@ -97,6 +188,37 @@ if (!result.valid) {
 | `.integer(msg?)` | Must be an integer |
 | `.positive(msg?)` | Must be positive |
 | `.custom(fn, msg)` | Custom function |
+| `.customAsync(fn, msg)` | Custom async rule, runs only on `validateAsync` |
+
+### ArraySchema (`v.array(element)`)
+
+| Method | Description |
+|---|---|
+| `.required(msg?)` | Required (`null`/`undefined` fails; an empty array counts as present) |
+| `.min(n, msg?)` / `.max(n, msg?)` | Element count range |
+| `.nonEmpty(msg?)` | Must not be an empty array |
+
+### Sync / async validation
+
+Every validator exposes two entries:
+
+| Method | Description |
+|---|---|
+| `.validate(value)` | Synchronous, returns `ValidateResult` |
+| `.validateAsync(value)` | Asynchronous, returns `Promise<ValidateResult>`; runs both sync rules and `customAsync` async rules |
+
+### FormValidator (form binding)
+
+```typescript
+new FormValidator(shape: Record<string, AnySchema>)
+```
+
+| Method | Description |
+|---|---|
+| `.validateField(name, value)` | Validate a single field, returns the first error message or `null` |
+| `.validateFieldAsync(name, value)` | Async single-field validation, returns `Promise<string \| null>` |
+| `.validateAll(values)` | Whole-form validation, returns a `Record<field, message>` of failing fields only |
+| `.isValid(values)` | Whether the whole form passes, returns `boolean` |
 
 ### Result
 
@@ -111,9 +233,16 @@ interface ValidateError {
 }
 ```
 
-## Roadmap
+## Version
 
-Current `0.1.0` (MVP). Planned: array validation, async validation, deep nested objects, integration with ArkUI form components.
+Current `0.2.0`. New since the `0.1.0` MVP:
+
+- ✅ Array validation `v.array()`
+- ✅ Async validation `validateAsync` / `customAsync` (remote uniqueness checks)
+- ✅ Deep nested objects / arrays (error paths joined automatically)
+- ✅ ArkUI form binding `FormValidator`
+
+See the full [CHANGELOG](./CHANGELOG.md).
 
 ## License
 
