@@ -80,6 +80,73 @@ struct Index {
       result: orderSchema.validate(order),
     });
 
+    // —— v0.3 跨字段校验 refine（确认密码）——
+    const pwdSchema = v.object({
+      'pwd': v.string().required('请输入密码').min(6),
+      'confirm': v.string().required('请确认密码'),
+    }).refine((o: Record<string, Object>): boolean => o['pwd'] === o['confirm'], '两次密码不一致', 'confirm');
+    list.push({
+      title: 'v0.3 跨字段：两次密码不一致（错误归到 confirm）',
+      result: pwdSchema.validate({ 'pwd': 'abc123', 'confirm': 'abc999' } as Record<string, Object>),
+    });
+
+    // —— v0.3 条件必填 requiredWhen（企业才必填税号）——
+    const bizSchema = v.object({
+      'type': v.string(),
+      'taxId': v.string().requiredWhen('type',
+        (t: Object | null | undefined): boolean => (t as string) === 'company', '企业必须填写税号'),
+    });
+    list.push({
+      title: 'v0.3 条件必填：type=company 时税号必填',
+      result: bizSchema.validate({ 'type': 'company', 'taxId': '' } as Record<string, Object>),
+    });
+    list.push({
+      title: 'v0.3 条件必填：type=person 时税号可空（应通过）',
+      result: bizSchema.validate({ 'type': 'person', 'taxId': '' } as Record<string, Object>),
+    });
+
+    // —— v0.3 新类型 boolean / enum / date ——
+    list.push({
+      title: 'v0.3 boolean：未勾选同意（应失败）',
+      result: v.boolean().isTrue('请先同意用户协议').validate(false),
+    });
+    list.push({
+      title: 'v0.3 enum：性别取值非法（应失败）',
+      result: v.enumOf(['male', 'female']).validate('unknown'),
+    });
+    list.push({
+      title: 'v0.3 date：早于 2020-01-01（应失败）',
+      result: v.date().min('2020-01-01', '日期不能早于 2020 年').validate('2019-06-01'),
+    });
+
+    // —— v0.3 新增中国规则 ——
+    // 跨字段/条件 的「通过」反例
+    list.push({
+      title: 'v0.3 跨字段：两次密码一致（应通过）',
+      result: pwdSchema.validate({ 'pwd': 'abc123', 'confirm': 'abc123' } as Record<string, Object>),
+    });
+    // optional 显式可选：空值跳过规则
+    list.push({
+      title: 'v0.3 optional：可选字段留空（应通过）',
+      result: v.string().optional().min(5).validate(''),
+    });
+    // boolean / enum / date 的「通过」反例
+    list.push({ title: 'v0.3 boolean：已勾选同意（应通过）', result: v.boolean().isTrue().validate(true) });
+    list.push({ title: 'v0.3 enum：male（应通过）', result: v.enumOf(['male', 'female']).validate('male') });
+    list.push({ title: 'v0.3 date：2021-06-01 晚于下限（应通过）', result: v.date().min('2020-01-01').validate('2021-06-01') });
+    list.push({ title: 'v0.3 date：非法日期串（应失败）', result: v.date().validate('not-a-date') });
+
+    // 新增中国规则:逐条 通过 + 失败
+    list.push({ title: 'v0.3 固话 010-82345678（应通过）', result: v.string().landline().validate('010-82345678') });
+    list.push({ title: 'v0.3 中文姓名 张三（应通过）', result: v.string().chineseName().validate('张三') });
+    list.push({ title: 'v0.3 VIN LFV2A21K9C3000000（应通过）', result: v.string().vin().validate('LFV2A21K9C3000000') });
+    list.push({ title: 'v0.3 VIN 非法 ABC（应失败）', result: v.string().vin().validate('ABC') });
+    list.push({ title: 'v0.3 IPv4 192.168.1.1（应通过）', result: v.string().ipv4().validate('192.168.1.1') });
+    list.push({ title: 'v0.3 IPv4 越界 256.1.1.1（应失败）', result: v.string().ipv4().validate('256.1.1.1') });
+    list.push({ title: 'v0.3 QQ 12345（应通过）', result: v.string().qq().validate('12345') });
+    list.push({ title: 'v0.3 微信号 abc_123（应通过）', result: v.string().wechat().validate('abc_123') });
+    list.push({ title: 'v0.3 URL https://ohpm.openharmony.cn（应通过）', result: v.string().url().validate('https://ohpm.openharmony.cn') });
+
     return list;
   }
 
