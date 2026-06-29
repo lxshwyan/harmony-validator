@@ -1,4 +1,5 @@
 import { v, ValidateResult, ValidateError } from '@hmkit/validator';
+import { router } from '@kit.ArkUI';
 
 interface Case {
   title: string;
@@ -139,7 +140,13 @@ struct Index {
       Text('harmony-validator Demo')
         .fontSize(20)
         .fontWeight(FontWeight.Bold)
-        .margin({ top: 16, bottom: 16 })
+        .margin({ top: 16, bottom: 12 })
+
+      Button('体验表单联动 Demo →')
+        .width('100%')
+        .height(42)
+        .margin({ bottom: 14 })
+        .onClick(() => router.pushUrl({ url: 'pages/FormDemo' }))
 
       Scroll() {
         Column() {
