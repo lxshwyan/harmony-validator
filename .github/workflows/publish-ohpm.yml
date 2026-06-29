@@ -1,0 +1,64 @@
+name: Publish to OHPM
+
+# 触发:推送形如 v0.1.2 的 tag 时自动打包并发布到鸿蒙中心仓(OHPM)。
+# 用法:
+#   1. 改好代码,把 validator/oh-package.json5 的 version 升到 0.1.2
+#   2. git commit && git push
+#   3. git tag v0.1.2 && git push origin v0.1.2   ← 这一步触发自动发布
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch: {}   # 也允许在 Actions 页面手动点触发
+
+# ⚠️ 必须用 self-hosted runner(你自己的 Mac):
+#    鸿蒙 ohpm / SDK 是华为门禁下载的,GitHub 托管 runner 拿不到完整工具链。
+#    self-hosted 直接复用本机已装好的 DevEco 工具链 + 已配置的发布密钥。
+jobs:
+  publish:
+    runs-on: [self-hosted, macOS]
+    env:
+      # 库模块名(对应 build-profile.json5 里的 module 名)
+      MODULE: validator
+      # DevEco 工具链路径(按本机实际安装位置,默认即 /Applications/DevEco-Studio.app)
+      DEVECO: /Applications/DevEco-Studio.app/Contents
+      # 私钥 passphrase:存进仓库 Secrets(见下方说明)。没设密码就留空。
+      OHPM_KEY_PASSPHRASE: ${{ secrets.OHPM_KEY_PASSPHRASE }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 校验 tag 与 oh-package 版本一致
+        run: |
+          set -e
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG_VER=$(grep -E '"version"' "${MODULE}/oh-package.json5" | head -1 | sed -E 's/.*"version" *: *"([^"]+)".*/\1/')
+          echo "tag=$TAG  oh-package.version=$PKG_VER"
+          if [ "$TAG" != "$PKG_VER" ]; then
+            echo "::error::tag ($TAG) 与 ${MODULE}/oh-package.json5 的 version ($PKG_VER) 不一致,请先对齐再发。"
+            exit 1
+          fi
+
+      - name: 打包 HAR (hvigorw assembleHar)
+        run: |
+          set -e
+          export NODE_HOME="${DEVECO}/tools/node"
+          export PATH="$NODE_HOME/bin:$PATH"
+          export DEVECO_SDK_HOME="${DEVECO}/sdk"
+          echo "node: $(node -v)"
+          bash "${DEVECO}/tools/hvigor/bin/hvigorw" \
+            --mode module -p product=default -p "module=${MODULE}@default" \
+            assembleHar --no-daemon
+
+      - name: 发布到 OHPM
+        run: |
+          set -e
+          export PATH="${DEVECO}/tools/node/bin:$PATH"
+          OHPM="${DEVECO}/tools/ohpm/bin/ohpm"
+          HAR="${MODULE}/build/default/outputs/default/${MODULE}.har"
+          test -f "$HAR" || { echo "::error::未找到 HAR: $HAR"; exit 1; }
+          # 把 passphrase 从 stdin 喂给 ohpm(它没有 --passphrase 参数,只能这样非交互)
+          printf '%s\n' "$OHPM_KEY_PASSPHRASE" | "$OHPM" publish "$HAR"
+
+      - name: 完成
+        run: echo "✅ 已提交 OHPM,去个人中心查看审核状态:https://ohpm.openharmony.cn/#/cn/personalCenter/package"
