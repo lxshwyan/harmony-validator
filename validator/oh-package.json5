@@ -1,0 +1,21 @@
+{
+  "name": "@hmkit/validator",
+  "version": "0.1.1",
+  "description": "鸿蒙 ArkTS 声明式表单/数据校验库，链式 API，内置手机号、身份证、银行卡等中国本地化规则",
+  "main": "Index.ets",
+  "author": "hmkit",
+  "license": "MIT",
+  "homepage": "https://github.com/lxshwyan/harmony-validator",
+  "repository": "https://github.com/lxshwyan/harmony-validator.git",
+  "keywords": [
+    "validator",
+    "validation",
+    "form",
+    "表单校验",
+    "数据校验",
+    "harmonyos",
+    "arkts",
+    "ohos"
+  ],
+  "dependencies": {}
+}

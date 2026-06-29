@@ -1,0 +1,8 @@
+{
+  "modelVersion": "5.0.0",
+  "name": "validatordemo",
+  "version": "1.0.0",
+  "description": "Demo app for @hmkit/validator",
+  "dependencies": {},
+  "devDependencies": {}
+}

@@ -1,0 +1,10 @@
+{
+  "module": {
+    "name": "validator",
+    "type": "har",
+    "deviceTypes": [
+      "phone",
+      "tablet"
+    ]
+  }
+}

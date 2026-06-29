@@ -1,0 +1,28 @@
+# DevEco / OpenHarmony build artifacts
+/build/
+**/build/
+/.hvigor/
+**/.hvigor/
+/.cxx/
+/oh_modules/
+**/oh_modules/
+.preview/
+**/.preview/
+
+# IDE
+/.idea/
+*.iml
+.clangd
+.clang-format
+
+# Local config & credentials (never commit keys)
+local.properties
+*.p12
+*.pem
+*_private*
+mykey
+mykey.pub
+
+# OS
+.DS_Store
+**/.DS_Store
