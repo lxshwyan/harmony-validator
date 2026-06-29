@@ -12,6 +12,9 @@
 - 🧩 **对象 / 数组校验** —— 整表校验，错误带字段路径（含数组下标，如 `items.0.name`）
 - 🪆 **深层嵌套** —— 对象、数组任意层级互相嵌套
 - ⏳ **异步校验** —— `validateAsync` / `customAsync`，支持远程查重（用户名、手机号是否已注册）
+- 🔗 **跨字段校验** —— `.refine()`，如确认密码一致、结束日期晚于开始日期
+- 🎚️ **条件/可选** —— `.optional()`、`.requiredWhen()`（某字段满足条件时才必填）
+- 🧮 **多种类型** —— 字符串、数字、布尔、枚举、日期、数组、对象
 - 📝 **ArkUI 表单联动** —— `FormValidator` 控制器，与 `TextInput` 等组件实时联动
 - 💬 **中文错误提示** —— 默认中文，且每条都可自定义
 
@@ -152,6 +155,40 @@ struct RegisterForm {
 
 > 完整可运行示例见仓库 `entry` 模块的 `FormDemo.ets`。
 
+### 跨字段校验 `.refine()`（确认密码 / 日期先后）
+
+```typescript
+const form = v.object({
+  'pwd': v.string().required().min(6),
+  'confirm': v.string().required(),
+}).refine((o: Record<string, Object>): boolean => o['pwd'] === o['confirm'], '两次密码不一致', 'confirm');
+
+form.validate({ 'pwd': 'abc123', 'confirm': 'abc999' });
+// { valid: false, errors: [{ path: 'confirm', message: '两次密码不一致' }] }
+```
+
+### 条件必填 `.requiredWhen()` / 可选 `.optional()`
+
+```typescript
+// 企业(type=company)才必填税号
+const schema = v.object({
+  'type': v.string(),
+  'taxId': v.string().requiredWhen('type',
+    (t: Object | null | undefined): boolean => (t as string) === 'company', '企业必须填写税号'),
+});
+schema.validate({ 'type': 'person', 'taxId': '' }); // 通过（个人无需税号）
+
+v.string().optional().min(5).validate(''); // 通过（可选字段留空跳过规则）
+```
+
+### 布尔 / 枚举 / 日期
+
+```typescript
+v.boolean().isTrue('请先同意协议').validate(false);     // 失败
+v.enumOf(['male', 'female']).validate('unknown');       // 失败：取值必须是 male / female
+v.date().min('2020-01-01').validate('2019-06-01');      // 失败：早于下限（接受 Date/时间戳/字符串）
+```
+
 ## API
 
 ### `v` 工厂
@@ -160,7 +197,10 @@ struct RegisterForm {
 |---|---|
 | `v.string()` | 创建字符串校验器 |
 | `v.number()` | 创建数字校验器 |
-| `v.object(shape)` | 创建对象校验器，`shape` 为 `{ 字段: 校验器 }` |
+| `v.boolean()` | 创建布尔校验器 |
+| `v.enumOf(values, message?)` | 创建枚举校验器，值必须在 `values` 内 |
+| `v.date()` | 创建日期校验器（接受 `Date`/时间戳/日期字符串） |
+| `v.object(shape)` | 创建对象校验器，`shape` 为 `{ 字段: 校验器 }`，支持 `.refine()` 跨字段 |
 | `v.array(element)` | 创建数组校验器，`element` 为元素校验器 |
 
 ### StringSchema
@@ -168,6 +208,8 @@ struct RegisterForm {
 | 方法 | 说明 |
 |---|---|
 | `.required(msg?)` | 必填（空串/未填报错） |
+| `.optional()` | 显式可选（空值跳过规则） |
+| `.requiredWhen(field, predicate, msg?)` | 条件必填：兄弟字段 `field` 满足 `predicate` 时必填 |
 | `.min(len, msg?)` / `.max(len, msg?)` | 长度范围 |
 | `.pattern(re, msg?)` | 自定义正则 |
 | `.custom(fn, msg)` | 自定义函数，返回 true 通过 |
@@ -178,6 +220,12 @@ struct RegisterForm {
 | `.plateNumber(msg?)` | 车牌（含新能源） |
 | `.creditCode(msg?)` | 统一社会信用代码 |
 | `.postalCode(msg?)` | 邮政编码 |
+| `.landline(msg?)` | 固定电话/座机 |
+| `.vin(msg?)` | 车架号 VIN（17 位） |
+| `.ipv4(msg?)` | IPv4 地址 |
+| `.chineseName(msg?)` | 中文姓名 |
+| `.qq(msg?)` / `.wechat(msg?)` | QQ 号 / 微信号 |
+| `.url(msg?)` | http(s) 网址 |
 | `.customAsync(fn, msg)` | 自定义异步规则（`fn` 返回 `Promise<boolean>`），仅 `validateAsync` 时执行 |
 
 ### NumberSchema
@@ -198,6 +246,35 @@ struct RegisterForm {
 | `.required(msg?)` | 必填（`null`/`undefined` 报错；空数组视为已填） |
 | `.min(n, msg?)` / `.max(n, msg?)` | 元素个数范围 |
 | `.nonEmpty(msg?)` | 不能为空数组 |
+
+### BooleanSchema（`v.boolean()`）
+
+| 方法 | 说明 |
+|---|---|
+| `.required(msg?)` | 必填 |
+| `.isTrue(msg?)` / `.isFalse(msg?)` | 必须为真 / 为假（如同意协议） |
+
+### EnumSchema（`v.enumOf(values, msg?)`）
+
+| 方法 | 说明 |
+|---|---|
+| `.required(msg?)` | 必填 |
+| 值校验 | 值必须 `===` `values` 中某项，否则报错 |
+
+### DateSchema（`v.date()`）
+
+接受 `Date` 对象、毫秒时间戳或可解析的日期字符串。
+
+| 方法 | 说明 |
+|---|---|
+| `.required(msg?)` | 必填 |
+| `.min(date, msg?)` / `.max(date, msg?)` | 不早于 / 不晚于 |
+
+### ObjectSchema 跨字段（`v.object(shape).refine(...)`）
+
+| 方法 | 说明 |
+|---|---|
+| `.refine(fn, message, path?)` | `fn` 拿到整个对象返回 `false` 时报错；`path` 指定错误归属字段（默认对象级） |
 
 ### 同步 / 异步校验
 
@@ -236,12 +313,11 @@ interface ValidateError {
 
 ## 版本
 
-当前 `0.2.0`。相较 MVP `0.1.0` 新增：
+当前 `0.3.0`。演进路线：
 
-- ✅ 数组校验 `v.array()`
-- ✅ 异步校验 `validateAsync` / `customAsync`（远程查重）
-- ✅ 深层嵌套对象 / 数组（错误路径自动拼接）
-- ✅ 与 ArkUI 表单组件联动 `FormValidator`
+- `0.1.0` MVP：链式 API + 中国本地化规则 + 对象校验
+- `0.2.0`：数组校验、异步校验、深层嵌套、ArkUI 表单联动 `FormValidator`
+- `0.3.0`：跨字段校验 `.refine()`、条件/可选 `.optional()`/`.requiredWhen()`、新类型 `v.boolean()`/`v.enumOf()`/`v.date()`、新增中国规则（固话/VIN/IPv4/中文姓名/QQ/微信/URL）
 
 完整变更见 [CHANGELOG](./CHANGELOG.md)。
 

@@ -12,6 +12,9 @@ Write validations like you do with `zod` / `yup`, but with high-frequency Chines
 - 🧩 **Object / array validation** — whole-form validation with per-field error paths (incl. array indices like `items.0.name`)
 - 🪆 **Deep nesting** — objects and arrays nested to any depth
 - ⏳ **Async validation** — `validateAsync` / `customAsync`, e.g. remote uniqueness checks (is a username / phone already registered)
+- 🔗 **Cross-field validation** — `.refine()`, e.g. confirm-password match, end-date after start-date
+- 🎚️ **Conditional / optional** — `.optional()`, `.requiredWhen()` (required only when another field matches)
+- 🧮 **Many types** — string, number, boolean, enum, date, array, object
 - 📝 **ArkUI form binding** — `FormValidator` controller that wires up to `TextInput` and other components in real time
 - 💬 **Chinese error messages** by default, every message overridable
 
@@ -151,6 +154,22 @@ struct RegisterForm {
 
 > A full runnable example lives in `FormDemo.ets` under the repo's `entry` module.
 
+### Cross-field `.refine()`, conditional `.requiredWhen()`, types
+
+```typescript
+// Confirm password
+const form = v.object({ 'pwd': v.string().required(), 'confirm': v.string().required() })
+  .refine((o: Record<string, Object>): boolean => o['pwd'] === o['confirm'], 'Passwords do not match', 'confirm');
+
+// taxId required only when type === 'company'
+v.string().requiredWhen('type',
+  (t: Object | null | undefined): boolean => (t as string) === 'company', 'Tax ID required');
+
+v.boolean().isTrue('Please accept').validate(false);   // fail
+v.enumOf(['male', 'female']).validate('unknown');      // fail
+v.date().min('2020-01-01').validate('2019-06-01');     // fail (accepts Date / timestamp / string)
+```
+
 ## API
 
 ### `v` factory
@@ -159,7 +178,10 @@ struct RegisterForm {
 |---|---|
 | `v.string()` | Create a string validator |
 | `v.number()` | Create a number validator |
-| `v.object(shape)` | Create an object validator; `shape` is `{ field: validator }` |
+| `v.boolean()` | Create a boolean validator |
+| `v.enumOf(values, message?)` | Enum validator; value must be one of `values` |
+| `v.date()` | Date validator (accepts `Date` / timestamp / date string) |
+| `v.object(shape)` | Create an object validator; supports `.refine()` for cross-field |
 | `v.array(element)` | Create an array validator; `element` is the per-element validator |
 
 ### StringSchema
@@ -177,6 +199,14 @@ struct RegisterForm {
 | `.plateNumber(msg?)` | License plate (incl. new-energy) |
 | `.creditCode(msg?)` | Unified social credit code |
 | `.postalCode(msg?)` | Postal code |
+| `.optional()` | Explicitly optional (empty value skips rules) |
+| `.requiredWhen(field, predicate, msg?)` | Required when sibling `field` matches `predicate` |
+| `.landline(msg?)` | Landline phone |
+| `.vin(msg?)` | Vehicle VIN (17 chars) |
+| `.ipv4(msg?)` | IPv4 address |
+| `.chineseName(msg?)` | Chinese name |
+| `.qq(msg?)` / `.wechat(msg?)` | QQ / WeChat id |
+| `.url(msg?)` | http(s) URL |
 | `.customAsync(fn, msg)` | Custom async rule (`fn` returns `Promise<boolean>`), runs only on `validateAsync` |
 
 ### NumberSchema
@@ -197,6 +227,35 @@ struct RegisterForm {
 | `.required(msg?)` | Required (`null`/`undefined` fails; an empty array counts as present) |
 | `.min(n, msg?)` / `.max(n, msg?)` | Element count range |
 | `.nonEmpty(msg?)` | Must not be an empty array |
+
+### BooleanSchema (`v.boolean()`)
+
+| Method | Description |
+|---|---|
+| `.required(msg?)` | Required |
+| `.isTrue(msg?)` / `.isFalse(msg?)` | Must be true / false (e.g. accept terms) |
+
+### EnumSchema (`v.enumOf(values, msg?)`)
+
+| Method | Description |
+|---|---|
+| `.required(msg?)` | Required |
+| value check | value must `===` one of `values` |
+
+### DateSchema (`v.date()`)
+
+Accepts a `Date`, a millisecond timestamp, or a parseable date string.
+
+| Method | Description |
+|---|---|
+| `.required(msg?)` | Required |
+| `.min(date, msg?)` / `.max(date, msg?)` | Not before / not after |
+
+### ObjectSchema cross-field (`v.object(shape).refine(...)`)
+
+| Method | Description |
+|---|---|
+| `.refine(fn, message, path?)` | Fails when `fn(wholeObject)` returns `false`; `path` assigns the error to a field |
 
 ### Sync / async validation
 
@@ -235,12 +294,11 @@ interface ValidateError {
 
 ## Version
 
-Current `0.2.0`. New since the `0.1.0` MVP:
+Current `0.3.0`. Roadmap:
 
-- ✅ Array validation `v.array()`
-- ✅ Async validation `validateAsync` / `customAsync` (remote uniqueness checks)
-- ✅ Deep nested objects / arrays (error paths joined automatically)
-- ✅ ArkUI form binding `FormValidator`
+- `0.1.0` MVP: chainable API + China-localized rules + object validation
+- `0.2.0`: array validation, async validation, deep nesting, ArkUI form binding `FormValidator`
+- `0.3.0`: cross-field `.refine()`, conditional/optional `.optional()`/`.requiredWhen()`, new types `v.boolean()`/`v.enumOf()`/`v.date()`, more China rules (landline/VIN/IPv4/Chinese name/QQ/WeChat/URL)
 
 See the full [CHANGELOG](./CHANGELOG.md).
 
