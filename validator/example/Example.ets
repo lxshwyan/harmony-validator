@@ -53,7 +53,49 @@ function formDemo(): void {
   }
 }
 
+// ---------------------------------------------------------------------------
+// 3. v0.2 数组校验 + 深层嵌套：错误路径自动带下标，如 items.0.name
+// ---------------------------------------------------------------------------
+function arrayAndNestedDemo(): void {
+  // 数组：逐元素校验 + 长度约束
+  const tags = v.array(v.string().min(2)).min(1, '至少一个标签');
+  console.info(`tags -> ${JSON.stringify(tags.validate(['ok', 'x']).errors)}`); // path "1"
+
+  // 深嵌套：对象 → 数组 → 对象,路径拼成 items.0.name
+  const orderSchema = v.object({
+    'items': v.array(v.object({
+      'name': v.string().required('请输入商品名'),
+      'qty': v.number().required().min(1, '数量至少为1'),
+    })).nonEmpty('至少一件商品'),
+  });
+  const order: Record<string, Object> = {
+    'items': [{ 'name': '', 'qty': 0 } as Record<string, Object>],
+  };
+  for (const e of orderSchema.validate(order).errors) {
+    console.info(`  ${e.path}: ${e.message}`); // items.0.name / items.0.qty
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 4. v0.2 异步校验：远程查重等场景,用 customAsync + validateAsync
+// ---------------------------------------------------------------------------
+async function asyncDemo(): Promise<void> {
+  // 模拟远程查重:用户名是否已被占用
+  const checkUsername: (name: string) => Promise<boolean> = (name: string): Promise<boolean> =>
+    Promise.resolve(name !== 'taken');
+
+  const userSchema = v.string().required().min(3).customAsync(checkUsername, '用户名已被占用');
+
+  const r1 = await userSchema.validateAsync('taken');
+  console.info(`taken -> ${r1.errors[0]?.message}`); // 用户名已被占用
+
+  const r2 = await userSchema.validateAsync('freeuser');
+  console.info(`freeuser -> valid=${r2.valid}`); // true
+}
+
 export function runValidatorExamples(): void {
   singleValueDemo();
   formDemo();
+  arrayAndNestedDemo();
+  asyncDemo();
 }

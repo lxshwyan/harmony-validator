@@ -1,6 +1,6 @@
 {
   "name": "@hmkit/validator",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "鸿蒙 ArkTS 声明式表单/数据校验库，链式 API，内置手机号、身份证、银行卡等中国本地化规则",
   "main": "Index.ets",
   "author": "hmkit",

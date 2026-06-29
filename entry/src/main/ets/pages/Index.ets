@@ -12,6 +12,7 @@ struct Index {
 
   aboutToAppear(): void {
     this.cases = this.runCases();
+    this.runAsyncCases();
   }
 
   runCases(): Case[] {
@@ -46,7 +47,60 @@ struct Index {
     const form: Record<string, Object> = { 'name': '张', 'phone': '139000', 'age': 16 };
     list.push({ title: '表单整体校验（预期 3 处错误）', result: schema.validate(form) });
 
+    // —— v0.2 新增：数组校验 ——
+    list.push({
+      title: 'v0.2 数组：[手机号, 123]（下标1应失败）',
+      result: v.array(v.string().phone()).validate(['13800138000', '123']),
+    });
+    list.push({
+      title: 'v0.2 数组 min(1)：空数组（应失败）',
+      result: v.array(v.string()).min(1, '至少填一项').validate([]),
+    });
+    list.push({
+      title: 'v0.2 数组：全部合法（应通过）',
+      result: v.array(v.string().min(2)).validate(['abc', 'de']),
+    });
+
+    // —— v0.2 新增：深层嵌套（对象→数组→对象，路径 items.0.name）——
+    const orderSchema = v.object({
+      'items': v.array(v.object({
+        'name': v.string().required('请输入商品名'),
+        'qty': v.number().required().min(1, '数量至少为1'),
+      })).nonEmpty('至少一件商品'),
+    });
+    const order: Record<string, Object> = {
+      'items': [
+        { 'name': '', 'qty': 0 } as Record<string, Object>,
+        { 'name': '苹果', 'qty': 2 } as Record<string, Object>,
+      ],
+    };
+    list.push({
+      title: 'v0.2 深嵌套：订单 items.0 缺名/数量（路径 items.0.*）',
+      result: orderSchema.validate(order),
+    });
+
     return list;
+  }
+
+  // —— v0.2 新增：异步校验（模拟远程查重，结果回来后追加到列表）——
+  runAsyncCases(): void {
+    // 模拟「已注册用户名」远程查重,延迟 300ms 返回
+    const checkUsername: (name: string) => Promise<boolean> = (name: string): Promise<boolean> => {
+      return new Promise<boolean>((resolve: (v: boolean) => void): void => {
+        setTimeout((): void => {
+          const taken: string[] = ['admin', 'taken', '张三'];
+          resolve(!taken.includes(name));
+        }, 300);
+      });
+    };
+    const userSchema = v.string().required('请输入用户名').min(3).customAsync(checkUsername, '该用户名已被占用');
+
+    userSchema.validateAsync('taken').then((r: ValidateResult): void => {
+      this.cases = this.cases.concat([{ title: 'v0.2 异步：用户名 taken（远程查重应失败）', result: r }]);
+    });
+    userSchema.validateAsync('freeuser').then((r: ValidateResult): void => {
+      this.cases = this.cases.concat([{ title: 'v0.2 异步：用户名 freeuser（应通过）', result: r }]);
+    });
   }
 
   @Builder

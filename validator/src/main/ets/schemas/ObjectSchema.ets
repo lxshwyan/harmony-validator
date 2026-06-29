@@ -31,4 +31,25 @@ export class ObjectSchema implements AnySchema {
     }
     return { valid: errors.length === 0, errors };
   }
+
+  /** 异步逐字段校验：对每个字段调用其 validateAsync，路径拼接规则同 validate。 */
+  async validateAsync(value: Object | null | undefined): Promise<ValidateResult> {
+    if (value === null || value === undefined) {
+      return { valid: false, errors: [{ path: '', message: '对象不能为空' }] };
+    }
+    const data = value as Record<string, Object>;
+    const errors: ValidateError[] = [];
+    const keys = Object.keys(this.shape);
+    for (const key of keys) {
+      const fieldSchema = this.shape[key];
+      const result = await fieldSchema.validateAsync(data[key]);
+      if (!result.valid) {
+        for (const e of result.errors) {
+          const path = e.path === '' ? key : `${key}.${e.path}`;
+          errors.push({ path: path, message: e.message });
+        }
+      }
+    }
+    return { valid: errors.length === 0, errors };
+  }
 }

@@ -3,4 +3,5 @@ export { v } from './src/main/ets/index';
 export { StringSchema } from './src/main/ets/schemas/StringSchema';
 export { NumberSchema } from './src/main/ets/schemas/NumberSchema';
 export { ObjectSchema, SchemaShape } from './src/main/ets/schemas/ObjectSchema';
+export { ArraySchema } from './src/main/ets/schemas/ArraySchema';
 export { AnySchema, ValidateError, ValidateResult } from './src/main/ets/core/types';

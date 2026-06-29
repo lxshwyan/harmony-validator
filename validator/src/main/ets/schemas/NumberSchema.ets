@@ -1,10 +1,12 @@
 import { AnySchema, ValidateError, ValidateResult } from '../core/types';
 
 type NumberRule = (value: number) => string | null;
+type NumberAsyncRule = (value: number) => Promise<string | null>;
 
 /** 数字校验器，支持链式调用。 */
 export class NumberSchema implements AnySchema {
   private rules: NumberRule[] = [];
+  private asyncRules: NumberAsyncRule[] = [];
   private isRequired: boolean = false;
   private requiredMsg: string = '该字段为必填项';
 
@@ -49,6 +51,13 @@ export class NumberSchema implements AnySchema {
     return this;
   }
 
+  /** 自定义异步规则。返回 Promise<true> 通过。仅 validateAsync 时生效。 */
+  customAsync(fn: (value: number) => Promise<boolean>, message: string): NumberSchema {
+    this.asyncRules.push(async (v: number): Promise<string | null> =>
+      (await fn(v)) ? null : message);
+    return this;
+  }
+
   validate(value: Object | null | undefined): ValidateResult {
     const errors: ValidateError[] = [];
     if (value === null || value === undefined) {
@@ -68,6 +77,23 @@ export class NumberSchema implements AnySchema {
       const msg = rule(num);
       if (msg !== null) {
         errors.push({ path: '', message: msg });
+      }
+    }
+    return { valid: errors.length === 0, errors };
+  }
+
+  /** 异步校验：先跑同步规则，再跑异步规则。 */
+  async validateAsync(value: Object | null | undefined): Promise<ValidateResult> {
+    const base = this.validate(value);
+    const errors: ValidateError[] = base.errors.slice();
+    if (value !== null && value !== undefined && typeof value === 'number'
+      && !Number.isNaN(value as number) && this.asyncRules.length > 0) {
+      const num = value as number;
+      for (const rule of this.asyncRules) {
+        const msg = await rule(num);
+        if (msg !== null) {
+          errors.push({ path: '', message: msg });
+        }
       }
     }
     return { valid: errors.length === 0, errors };
