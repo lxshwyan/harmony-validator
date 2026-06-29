@@ -9,7 +9,10 @@
 - 🔗 **链式声明式 API** —— `v.string().required().phone()`，读起来像说话
 - 🇨🇳 **中国规则开箱即用** —— 手机号、身份证（含校验位）、银行卡（Luhn）、车牌（含新能源）、统一社会信用代码、邮编
 - 📦 **零依赖**、纯 ArkTS 实现
-- 🧩 **对象整体校验** —— 一次校验整个表单，返回每个字段的错误与路径
+- 🧩 **对象 / 数组校验** —— 整表校验，错误带字段路径（含数组下标，如 `items.0.name`）
+- 🪆 **深层嵌套** —— 对象、数组任意层级互相嵌套
+- ⏳ **异步校验** —— `validateAsync` / `customAsync`，支持远程查重（用户名、手机号是否已注册）
+- 📝 **ArkUI 表单联动** —— `FormValidator` 控制器，与 `TextInput` 等组件实时联动
 - 💬 **中文错误提示** —— 默认中文，且每条都可自定义
 
 ## 安装
@@ -62,6 +65,93 @@ if (!result.valid) {
 }
 ```
 
+### 数组校验
+
+```typescript
+import { v } from '@hmkit/validator';
+
+// 逐元素校验 + 长度约束；错误路径带下标
+v.array(v.string().phone()).validate(['13800138000', '123']);
+// { valid: false, errors: [{ path: '1', message: '请输入正确的手机号' }] }
+
+v.array(v.string()).min(1, '至少填一项').validate([]);
+// { valid: false, errors: [{ path: '', message: '至少填一项' }] }
+```
+
+### 深层嵌套（对象 ↔ 数组任意层级）
+
+```typescript
+const orderSchema = v.object({
+  'items': v.array(v.object({
+    'name': v.string().required('请输入商品名'),
+    'qty':  v.number().required().min(1, '数量至少为 1'),
+  })).nonEmpty('至少一件商品'),
+});
+
+orderSchema.validate({ 'items': [{ 'name': '', 'qty': 0 }] });
+// errors: [
+//   { path: 'items.0.name', message: '请输入商品名' },
+//   { path: 'items.0.qty',  message: '数量至少为 1' },
+// ]
+```
+
+### 异步校验（远程查重）
+
+```typescript
+// customAsync 仅在 validateAsync 时执行；同步 validate 会忽略它
+const checkUsername = async (name: string): Promise<boolean> => {
+  // 调接口判断用户名是否可用，返回 true 表示通过
+  return await api.isUsernameAvailable(name);
+};
+
+const schema = v.string().required().min(3).customAsync(checkUsername, '用户名已被占用');
+const result = await schema.validateAsync('taken');
+// { valid: false, errors: [{ path: '', message: '用户名已被占用' }] }
+```
+
+### ArkUI 表单联动（FormValidator）
+
+```typescript
+import { v, FormValidator } from '@hmkit/validator';
+
+@Entry
+@Component
+struct RegisterForm {
+  private validator: FormValidator = new FormValidator({
+    'username': v.string().required('请输入用户名').min(3),
+    'phone':    v.string().required().phone(),
+    'age':      v.number().required().integer().min(18, '需年满 18 岁'),
+  });
+
+  @State username: string = '';
+  @State errors: Record<string, string> = {};
+
+  build() {
+    Column() {
+      TextInput({ placeholder: '用户名' })
+        .onChange((val: string) => {
+          this.username = val;
+          // 输入时实时校验单字段；返回错误信息(或 null)
+          const msg = this.validator.validateField('username', val);
+          this.errors = msg === null ? {} as Record<string, string>
+                                     : { 'username': msg } as Record<string, string>;
+        })
+      if (this.errors['username'] !== undefined) {
+        Text(this.errors['username']).fontColor('#E64340')
+      }
+
+      Button('提交').onClick(() => {
+        // 提交时整体校验，返回 字段->错误 的 map
+        const errs = this.validator.validateAll({ 'username': this.username });
+        this.errors = errs;
+      })
+    }
+  }
+}
+```
+
+> 完整可运行示例见仓库 `entry` 模块的 `FormDemo.ets`。
+
 ## API
 
 ### `v` 工厂
@@ -71,6 +161,7 @@ if (!result.valid) {
 | `v.string()` | 创建字符串校验器 |
 | `v.number()` | 创建数字校验器 |
 | `v.object(shape)` | 创建对象校验器，`shape` 为 `{ 字段: 校验器 }` |
+| `v.array(element)` | 创建数组校验器，`element` 为元素校验器 |
 
 ### StringSchema
 
@@ -87,6 +178,7 @@ if (!result.valid) {
 | `.plateNumber(msg?)` | 车牌（含新能源） |
 | `.creditCode(msg?)` | 统一社会信用代码 |
 | `.postalCode(msg?)` | 邮政编码 |
+| `.customAsync(fn, msg)` | 自定义异步规则（`fn` 返回 `Promise<boolean>`），仅 `validateAsync` 时执行 |
 
 ### NumberSchema
 
@@ -97,6 +189,37 @@ if (!result.valid) {
 | `.integer(msg?)` | 必须为整数 |
 | `.positive(msg?)` | 必须为正数 |
 | `.custom(fn, msg)` | 自定义函数 |
+| `.customAsync(fn, msg)` | 自定义异步规则，仅 `validateAsync` 时执行 |
+
+### ArraySchema（`v.array(element)`）
+
+| 方法 | 说明 |
+|---|---|
+| `.required(msg?)` | 必填（`null`/`undefined` 报错；空数组视为已填） |
+| `.min(n, msg?)` / `.max(n, msg?)` | 元素个数范围 |
+| `.nonEmpty(msg?)` | 不能为空数组 |
+
+### 同步 / 异步校验
+
+每个校验器都有两个入口：
+
+| 方法 | 说明 |
+|---|---|
+| `.validate(value)` | 同步校验，返回 `ValidateResult` |
+| `.validateAsync(value)` | 异步校验，返回 `Promise<ValidateResult>`，会同时跑同步规则与 `customAsync` 异步规则 |
+
+### FormValidator（表单联动）
+
+```typescript
+new FormValidator(shape: Record<string, AnySchema>)
+```
+
+| 方法 | 说明 |
+|---|---|
+| `.validateField(name, value)` | 实时校验单字段，返回首条错误信息或 `null` |
+| `.validateFieldAsync(name, value)` | 异步校验单字段，返回 `Promise<string \| null>` |
+| `.validateAll(values)` | 整体校验，返回只含出错字段的 `Record<字段名, 错误信息>` |
+| `.isValid(values)` | 整体是否通过，返回 `boolean` |
 
 ### 校验结果
 
@@ -113,8 +236,15 @@ interface ValidateError {
 
 ## 版本
 
-当前 `0.1.0`（MVP）。后续计划：数组校验、异步校验、深层嵌套对象、与 ArkUI 表单组件联动。
+当前 `0.2.0`。相较 MVP `0.1.0` 新增：
+
+- ✅ 数组校验 `v.array()`
+- ✅ 异步校验 `validateAsync` / `customAsync`（远程查重）
+- ✅ 深层嵌套对象 / 数组（错误路径自动拼接）
+- ✅ 与 ArkUI 表单组件联动 `FormValidator`
+
+完整变更见 [CHANGELOG](./CHANGELOG.md)。
 
 ## License
 
-Apache-2.0
+MIT
