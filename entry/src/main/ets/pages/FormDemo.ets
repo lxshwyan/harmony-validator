@@ -1,6 +1,5 @@
-import { v } from '@hmkit/validator';
+import { v, FormValidator } from '@hmkit/validator';
 import { router } from '@kit.ArkUI';
-import { FormValidator } from '../form/FormValidator';
 
 /**
  * ArkUI 表单联动 Demo：输入时实时校验，提交时整体校验。

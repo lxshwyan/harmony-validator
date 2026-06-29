@@ -5,6 +5,7 @@
 - **数组校验** `v.array(element)`：支持 `min` / `max` / `nonEmpty` 元素个数约束，逐元素套用校验器，错误路径带下标(如 `0`、`items.0.name`)
 - **异步校验** `validateAsync()`：所有校验器新增异步入口；字符串/数字新增 `customAsync(fn, message)`，用于远程查重(用户名/手机号是否已注册)等场景
 - **深层嵌套**：对象/数组任意层级互相嵌套,错误路径自动拼接(`a.b.0.c`)
+- **ArkUI 表单联动** `FormValidator`：把「字段名->校验器」包成控制器,提供 `validateField`(输入实时校验)/ `validateFieldAsync` / `validateAll`(提交整体校验),与 TextInput 等组件联动
 - 同步 API 完全向后兼容,`validate()` 行为不变
 
 ## 0.1.1
