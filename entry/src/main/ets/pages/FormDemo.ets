@@ -4,6 +4,8 @@ import { router } from '@kit.ArkUI';
 /**
  * ArkUI 表单联动 Demo：输入时实时校验，提交时整体校验。
  * 展示 @hmkit/validator 与 ArkUI TextInput 的联动用法。
+ *
+ * 关键：TextInput 的 text 用 $$ 双向绑定到 @State，输入时不会重建输入框、不丢焦点。
  */
 @Entry
 @Component
@@ -46,29 +48,12 @@ struct FormDemo {
   }
 
   @Builder
-  field(label: string, name: string, value: string, inputType: InputType,
-    onChange: (val: string) => void) {
-    Column() {
-      Text(label).fontSize(14).fontColor('#666').margin({ bottom: 4 })
-      TextInput({ text: value, placeholder: `请输入${label}` })
-        .type(inputType)
-        .height(44)
-        .borderRadius(8)
-        .backgroundColor('#FFFFFF')
-        .borderWidth(1)
-        .borderColor(this.errors[name] !== undefined ? '#E64340' : '#E5E5E5')
-        .onChange(onChange)
-      if (this.errors[name] !== undefined) {
-        Text(this.errors[name])
-          .fontSize(12).fontColor('#E64340')
-          .margin({ top: 4 })
-          .width('100%')
-          .textAlign(TextAlign.Start)
-      }
+  errorText(name: string) {
+    if (this.errors[name] !== undefined) {
+      Text(this.errors[name])
+        .fontSize(12).fontColor('#E64340')
+        .margin({ top: 4 }).width('100%').textAlign(TextAlign.Start)
     }
-    .width('100%')
-    .alignItems(HorizontalAlign.Start)
-    .margin({ bottom: 14 })
   }
 
   build() {
@@ -81,21 +66,40 @@ struct FormDemo {
       }
       .width('100%').margin({ top: 16, bottom: 20 })
 
-      this.field('用户名', 'username', this.username, InputType.Normal, (val: string) => {
-        this.username = val;
-        this.setError('username', this.validator.validateField('username', val));
-      })
+      // 用户名
+      Column() {
+        Text('用户名').fontSize(14).fontColor('#666').margin({ bottom: 4 })
+        TextInput({ text: $$this.username, placeholder: '请输入用户名' })
+          .height(44).borderRadius(8).backgroundColor('#FFFFFF')
+          .borderWidth(1).borderColor(this.errors['username'] !== undefined ? '#E64340' : '#E5E5E5')
+          .onChange((val: string) => this.setError('username', this.validator.validateField('username', val)))
+        this.errorText('username')
+      }.width('100%').alignItems(HorizontalAlign.Start).margin({ bottom: 14 })
 
-      this.field('手机号', 'phone', this.phone, InputType.Number, (val: string) => {
-        this.phone = val;
-        this.setError('phone', this.validator.validateField('phone', val));
-      })
+      // 手机号
+      Column() {
+        Text('手机号').fontSize(14).fontColor('#666').margin({ bottom: 4 })
+        TextInput({ text: $$this.phone, placeholder: '请输入手机号' })
+          .type(InputType.Number)
+          .height(44).borderRadius(8).backgroundColor('#FFFFFF')
+          .borderWidth(1).borderColor(this.errors['phone'] !== undefined ? '#E64340' : '#E5E5E5')
+          .onChange((val: string) => this.setError('phone', this.validator.validateField('phone', val)))
+        this.errorText('phone')
+      }.width('100%').alignItems(HorizontalAlign.Start).margin({ bottom: 14 })
 
-      this.field('年龄', 'age', this.age, InputType.Number, (val: string) => {
-        this.age = val;
-        const num: Object | undefined = val === '' ? undefined : Number(val);
-        this.setError('age', this.validator.validateField('age', num));
-      })
+      // 年龄
+      Column() {
+        Text('年龄').fontSize(14).fontColor('#666').margin({ bottom: 4 })
+        TextInput({ text: $$this.age, placeholder: '请输入年龄' })
+          .type(InputType.Number)
+          .height(44).borderRadius(8).backgroundColor('#FFFFFF')
+          .borderWidth(1).borderColor(this.errors['age'] !== undefined ? '#E64340' : '#E5E5E5')
+          .onChange((val: string) => {
+            const num: Object | undefined = val === '' ? undefined : Number(val);
+            this.setError('age', this.validator.validateField('age', num));
+          })
+        this.errorText('age')
+      }.width('100%').alignItems(HorizontalAlign.Start).margin({ bottom: 14 })
 
       Button('提交')
         .width('100%').height(46).margin({ top: 6 })
