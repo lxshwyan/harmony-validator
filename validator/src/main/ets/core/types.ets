@@ -23,8 +23,10 @@ export interface ValidateResult {
  * - validate: 同步校验。
  * - validateAsync: 异步校验，会同时跑同步规则和异步规则（如远程查重）。
  *   不含异步规则时，其结果与 validate 一致。
+ * - siblings: 可选，当前字段所在对象（同级字段集合），供 `.requiredWhen` 等条件校验读取兄弟字段值。
+ *   顶层/单值校验时为 undefined。调用方通常不需要手动传。
  */
 export interface AnySchema {
-  validate(value: Object | null | undefined): ValidateResult;
-  validateAsync(value: Object | null | undefined): Promise<ValidateResult>;
+  validate(value: Object | null | undefined, siblings?: Record<string, Object>): ValidateResult;
+  validateAsync(value: Object | null | undefined, siblings?: Record<string, Object>): Promise<ValidateResult>;
 }

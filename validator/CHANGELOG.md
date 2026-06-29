@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0
+
+- **跨字段校验** `v.object({...}).refine(fn, message, path?)`：拿到整个对象判断，支持「确认密码==密码」「结束日期>开始日期」等
+- **条件/可选校验** `.optional()` 显式可选；`.requiredWhen(field, predicate, message?)` 当兄弟字段满足条件时才必填
+- **新类型**：`v.boolean()`(含 `isTrue`/`isFalse`，如同意协议)、`v.enumOf([...])`(值在集合内)、`v.date()`(接受 Date/时间戳/字符串，含 `min`/`max` 先后)
+- **新增中国本地化规则**：固定电话 `landline`、车架号 `vin`、`ipv4`、中文姓名 `chineseName`、`qq`、`wechat`、`url`
+- 校验接口新增可选 `siblings` 上下文参数（支撑 `requiredWhen`），同步/异步 API 向后兼容
+
 ## 0.2.0
 
 - **数组校验** `v.array(element)`：支持 `min` / `max` / `nonEmpty` 元素个数约束，逐元素套用校验器，错误路径带下标(如 `0`、`items.0.name`)

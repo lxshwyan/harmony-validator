@@ -49,7 +49,7 @@ export class ArraySchema implements AnySchema {
     return this;
   }
 
-  validate(value: Object | null | undefined): ValidateResult {
+  validate(value: Object | null | undefined, siblings?: Record<string, Object>): ValidateResult {
     const errors: ValidateError[] = [];
     if (value === null || value === undefined) {
       if (this.isRequired) {
@@ -82,7 +82,7 @@ export class ArraySchema implements AnySchema {
   }
 
   /** 异步逐元素校验：对每个元素调用其 validateAsync，路径规则同 validate。 */
-  async validateAsync(value: Object | null | undefined): Promise<ValidateResult> {
+  async validateAsync(value: Object | null | undefined, siblings?: Record<string, Object>): Promise<ValidateResult> {
     const errors: ValidateError[] = [];
     if (value === null || value === undefined) {
       if (this.isRequired) {

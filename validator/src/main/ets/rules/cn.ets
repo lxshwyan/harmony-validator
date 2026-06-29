@@ -67,3 +67,38 @@ export function isCreditCode(value: string): boolean {
 export function isPostalCode(value: string): boolean {
   return /^[1-9]\d{5}$/.test(value);
 }
+
+/** 固定电话/座机：区号(3-4位)可选，号码 7-8 位，区号与号码间可有「-」。 */
+export function isLandline(value: string): boolean {
+  return /^(0\d{2,3}-?)?\d{7,8}$/.test(value);
+}
+
+/** 车架号 VIN：17 位，由数字和大写字母组成，不含 I、O、Q。 */
+export function isVIN(value: string): boolean {
+  return /^[A-HJ-NPR-Z0-9]{17}$/.test(value);
+}
+
+/** IPv4 地址。 */
+export function isIPv4(value: string): boolean {
+  return /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/.test(value);
+}
+
+/** 中文姓名：2-16 个汉字，允许间隔号「·」(少数民族姓名)。 */
+export function isChineseName(value: string): boolean {
+  return /^[一-龥][一-龥·]{1,15}$/.test(value);
+}
+
+/** QQ 号：5-11 位数字，首位非 0。 */
+export function isQQ(value: string): boolean {
+  return /^[1-9][0-9]{4,10}$/.test(value);
+}
+
+/** 微信号：字母开头，6-20 位，可含字母、数字、下划线、减号。 */
+export function isWechat(value: string): boolean {
+  return /^[a-zA-Z][a-zA-Z0-9_-]{5,19}$/.test(value);
+}
+
+/** http(s) URL。 */
+export function isUrl(value: string): boolean {
+  return /^https?:\/\/[^\s/$.?#][^\s]*$/i.test(value);
+}

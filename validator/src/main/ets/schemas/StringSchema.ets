@@ -1,10 +1,17 @@
 import { AnySchema, ValidateError, ValidateResult } from '../core/types';
-import { isMobile, isEmail, isIdCard, isBankCard, isPlateNumber, isCreditCode, isPostalCode } from '../rules/cn';
+import { isMobile, isEmail, isIdCard, isBankCard, isPlateNumber, isCreditCode, isPostalCode,
+  isLandline, isVIN, isIPv4, isChineseName, isQQ, isWechat, isUrl } from '../rules/cn';
 
 /** 单条字符串校验规则：返回 null 表示通过，返回字符串表示错误提示。 */
 type StringRule = (value: string) => string | null;
 /** 单条异步字符串校验规则：返回 null 表示通过，返回字符串表示错误提示。 */
 type StringAsyncRule = (value: string) => Promise<string | null>;
+/** 条件必填：当兄弟字段满足 predicate 时该字段必填。 */
+interface RequiredWhenCond {
+  field: string;
+  predicate: (other: Object | null | undefined) => boolean;
+  message: string;
+}
 
 /** 字符串校验器，支持链式调用。 */
 export class StringSchema implements AnySchema {
@@ -12,6 +19,7 @@ export class StringSchema implements AnySchema {
   private asyncRules: StringAsyncRule[] = [];
   private isRequired: boolean = false;
   private requiredMsg: string = '该字段为必填项';
+  private whenConds: RequiredWhenCond[] = [];
 
   /** 标记为必填。空串/未填会报错。 */
   required(message?: string): StringSchema {
@@ -19,6 +27,23 @@ export class StringSchema implements AnySchema {
     if (message !== undefined) {
       this.requiredMsg = message;
     }
+    return this;
+  }
+
+  /** 显式标记为可选（默认即可选）。空值跳过所有规则、直接通过。 */
+  optional(): StringSchema {
+    this.isRequired = false;
+    return this;
+  }
+
+  /**
+   * 条件必填：当同级(兄弟)字段 `field` 的值满足 `predicate` 时，本字段必填。
+   * 例：`v.string().requiredWhen('type', t => t === 'company', '企业必须填写')`
+   * 仅在对象校验(v.object)中生效——需要兄弟字段上下文。
+   */
+  requiredWhen(field: string, predicate: (other: Object | null | undefined) => boolean,
+    message?: string): StringSchema {
+    this.whenConds.push({ field, predicate, message: message ?? this.requiredMsg });
     return this;
   }
 
@@ -102,12 +127,76 @@ export class StringSchema implements AnySchema {
     return this;
   }
 
-  validate(value: Object | null | undefined): ValidateResult {
+  /** 固定电话/座机。 */
+  landline(message?: string): StringSchema {
+    this.rules.push((value: string): string | null =>
+      isLandline(value) ? null : (message ?? '请输入正确的固定电话'));
+    return this;
+  }
+
+  /** 车架号 VIN（17 位）。 */
+  vin(message?: string): StringSchema {
+    this.rules.push((value: string): string | null =>
+      isVIN(value) ? null : (message ?? '请输入正确的车架号'));
+    return this;
+  }
+
+  /** IPv4 地址。 */
+  ipv4(message?: string): StringSchema {
+    this.rules.push((value: string): string | null =>
+      isIPv4(value) ? null : (message ?? '请输入正确的 IPv4 地址'));
+    return this;
+  }
+
+  /** 中文姓名。 */
+  chineseName(message?: string): StringSchema {
+    this.rules.push((value: string): string | null =>
+      isChineseName(value) ? null : (message ?? '请输入正确的中文姓名'));
+    return this;
+  }
+
+  /** QQ 号。 */
+  qq(message?: string): StringSchema {
+    this.rules.push((value: string): string | null =>
+      isQQ(value) ? null : (message ?? '请输入正确的 QQ 号'));
+    return this;
+  }
+
+  /** 微信号。 */
+  wechat(message?: string): StringSchema {
+    this.rules.push((value: string): string | null =>
+      isWechat(value) ? null : (message ?? '请输入正确的微信号'));
+    return this;
+  }
+
+  /** http(s) URL。 */
+  url(message?: string): StringSchema {
+    this.rules.push((value: string): string | null =>
+      isUrl(value) ? null : (message ?? '请输入正确的网址'));
+    return this;
+  }
+
+  /** 计算空值时是否应报「必填」错误（含条件必填）；返回错误信息或 null。 */
+  private requiredMessage(siblings?: Record<string, Object>): string | null {
+    if (this.isRequired) {
+      return this.requiredMsg;
+    }
+    for (const c of this.whenConds) {
+      const other: Object | null | undefined = siblings === undefined ? undefined : siblings[c.field];
+      if (c.predicate(other)) {
+        return c.message;
+      }
+    }
+    return null;
+  }
+
+  validate(value: Object | null | undefined, siblings?: Record<string, Object>): ValidateResult {
     const errors: ValidateError[] = [];
     const isEmpty = value === null || value === undefined || value === '';
     if (isEmpty) {
-      if (this.isRequired) {
-        errors.push({ path: '', message: this.requiredMsg });
+      const reqMsg = this.requiredMessage(siblings);
+      if (reqMsg !== null) {
+        errors.push({ path: '', message: reqMsg });
       }
       return { valid: errors.length === 0, errors };
     }
@@ -125,8 +214,8 @@ export class StringSchema implements AnySchema {
   }
 
   /** 异步校验：先跑同步规则，再跑异步规则（如远程查重）。 */
-  async validateAsync(value: Object | null | undefined): Promise<ValidateResult> {
-    const base = this.validate(value);
+  async validateAsync(value: Object | null | undefined, siblings?: Record<string, Object>): Promise<ValidateResult> {
+    const base = this.validate(value, siblings);
     const errors: ValidateError[] = base.errors.slice();
     const isEmpty = value === null || value === undefined || value === '';
     // 仅在值存在、类型正确、且有异步规则时才跑异步校验

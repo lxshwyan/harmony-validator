@@ -41,9 +41,10 @@ export class FormValidator {
     const errors: Record<string, string> = {};
     const keys = Object.keys(this.shape);
     for (const key of keys) {
-      const msg = this.validateField(key, values[key]);
-      if (msg !== null) {
-        errors[key] = msg;
+      // 传入整组值作为 siblings，使字段的 requiredWhen 条件能读取兄弟字段
+      const r = this.shape[key].validate(values[key], values);
+      if (!r.valid) {
+        errors[key] = r.errors[0].message;
       }
     }
     return errors;
