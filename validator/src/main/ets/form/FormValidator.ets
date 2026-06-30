@@ -16,23 +16,29 @@ export class FormValidator {
     this.shape = shape;
   }
 
-  /** 校验单个字段，返回首条错误信息；通过则返回 null。 */
-  validateField(name: string, value: Object | null | undefined): string | null {
+  /**
+   * 校验单个字段，返回首条错误信息；通过则返回 null。
+   * @param allValues 可选，传入整组当前值，使该字段的 `requiredWhen` 条件能读取兄弟字段
+   *   （实时输入校验时建议传，否则条件必填要到 validateAll 才会触发）。
+   */
+  validateField(name: string, value: Object | null | undefined,
+    allValues?: Record<string, Object>): string | null {
     const schema: AnySchema = this.shape[name];
     if (schema === undefined) {
       return null;
     }
-    const r = schema.validate(value);
+    const r = schema.validate(value, allValues);
     return r.valid ? null : r.errors[0].message;
   }
 
   /** 异步校验单个字段(支持 customAsync 远程查重)。 */
-  async validateFieldAsync(name: string, value: Object | null | undefined): Promise<string | null> {
+  async validateFieldAsync(name: string, value: Object | null | undefined,
+    allValues?: Record<string, Object>): Promise<string | null> {
     const schema: AnySchema = this.shape[name];
     if (schema === undefined) {
       return null;
     }
-    const r = await schema.validateAsync(value);
+    const r = await schema.validateAsync(value, allValues);
     return r.valid ? null : r.errors[0].message;
   }
 

@@ -7,6 +7,14 @@
 - **新类型**：`v.boolean()`(含 `isTrue`/`isFalse`，如同意协议)、`v.enumOf([...])`(值在集合内)、`v.date()`(接受 Date/时间戳/字符串，含 `min`/`max` 先后)
 - **新增中国本地化规则**：固定电话 `landline`、车架号 `vin`、`ipv4`、中文姓名 `chineseName`、`qq`、`wechat`、`url`
 - 校验接口新增可选 `siblings` 上下文参数（支撑 `requiredWhen`），同步/异步 API 向后兼容
+- **健壮性 & 一致性**：
+  - 数字字段空串 `''` 视为空值（修 ArkUI 表单空数字输入误报「类型错误」）
+  - `v.date().min/max` 传入非法日期时跳过该规则（修「静默全量拒绝」）
+  - 身份证增加出生日期合法性校验；统一社会信用代码增加 GB32100 校验位
+  - `.refine()` 内部异常被捕获并按「未通过」处理，不会让整个校验崩溃
+  - `.optional()` / `.requiredWhen()` 补齐到 Boolean/Enum/Date/Array；`v.object()` 支持 `.optional()`（可空嵌套对象）
+  - `FormValidator.validateField` 增加可选整组值参数，使实时校验也能触发 `requiredWhen`
+  - 同步规则未通过时短路异步规则（省一次远程查重请求）；固话、中文姓名规则收紧
 
 ## 0.2.0
 

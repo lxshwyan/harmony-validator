@@ -1,4 +1,5 @@
 import { AnySchema, ValidateError, ValidateResult } from '../core/types';
+import { RequiredState } from '../core/required';
 
 type DateLike = Date | number | string;
 type DateRule = (ms: number) => string | null;
@@ -23,39 +24,49 @@ function toMillis(value: Object): number {
  */
 export class DateSchema implements AnySchema {
   private rules: DateRule[] = [];
-  private isRequired: boolean = false;
-  private requiredMsg: string = '该字段为必填项';
+  private req: RequiredState = new RequiredState();
 
   /** 必填。 */
   required(message?: string): DateSchema {
-    this.isRequired = true;
-    if (message !== undefined) {
-      this.requiredMsg = message;
-    }
+    this.req.markRequired(message);
     return this;
   }
 
-  /** 不能早于 `min`。 */
+  /** 显式可选。 */
+  optional(): DateSchema {
+    this.req.markOptional();
+    return this;
+  }
+
+  /** 条件必填：当同级字段满足 predicate 时本字段必填（仅 v.object 中生效）。 */
+  requiredWhen(field: string, predicate: (other: Object | null | undefined) => boolean,
+    message?: string): DateSchema {
+    this.req.addWhen(field, predicate, message);
+    return this;
+  }
+
+  /** 不能早于 `min`。若边界无法解析（NaN）则跳过该规则，避免静默全量拒绝。 */
   min(min: DateLike, message?: string): DateSchema {
     const bound = toMillis(min);
     this.rules.push((ms: number): string | null =>
-      ms >= bound ? null : (message ?? '日期不能早于限定值'));
+      Number.isNaN(bound) || ms >= bound ? null : (message ?? '日期不能早于限定值'));
     return this;
   }
 
-  /** 不能晚于 `max`。 */
+  /** 不能晚于 `max`。若边界无法解析（NaN）则跳过该规则。 */
   max(max: DateLike, message?: string): DateSchema {
     const bound = toMillis(max);
     this.rules.push((ms: number): string | null =>
-      ms <= bound ? null : (message ?? '日期不能晚于限定值'));
+      Number.isNaN(bound) || ms <= bound ? null : (message ?? '日期不能晚于限定值'));
     return this;
   }
 
   validate(value: Object | null | undefined, siblings?: Record<string, Object>): ValidateResult {
     const errors: ValidateError[] = [];
     if (value === null || value === undefined || value === '') {
-      if (this.isRequired) {
-        errors.push({ path: '', message: this.requiredMsg });
+      const reqMsg = this.req.message(siblings);
+      if (reqMsg !== null) {
+        errors.push({ path: '', message: reqMsg });
       }
       return { valid: errors.length === 0, errors };
     }

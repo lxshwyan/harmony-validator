@@ -1,4 +1,5 @@
 import { AnySchema, ValidateError, ValidateResult } from '../core/types';
+import { RequiredState } from '../core/required';
 import { isMobile, isEmail, isIdCard, isBankCard, isPlateNumber, isCreditCode, isPostalCode,
   isLandline, isVIN, isIPv4, isChineseName, isQQ, isWechat, isUrl } from '../rules/cn';
 
@@ -6,33 +7,22 @@ import { isMobile, isEmail, isIdCard, isBankCard, isPlateNumber, isCreditCode, i
 type StringRule = (value: string) => string | null;
 /** 单条异步字符串校验规则：返回 null 表示通过，返回字符串表示错误提示。 */
 type StringAsyncRule = (value: string) => Promise<string | null>;
-/** 条件必填：当兄弟字段满足 predicate 时该字段必填。 */
-interface RequiredWhenCond {
-  field: string;
-  predicate: (other: Object | null | undefined) => boolean;
-  message: string;
-}
 
 /** 字符串校验器，支持链式调用。 */
 export class StringSchema implements AnySchema {
   private rules: StringRule[] = [];
   private asyncRules: StringAsyncRule[] = [];
-  private isRequired: boolean = false;
-  private requiredMsg: string = '该字段为必填项';
-  private whenConds: RequiredWhenCond[] = [];
+  private req: RequiredState = new RequiredState();
 
   /** 标记为必填。空串/未填会报错。 */
   required(message?: string): StringSchema {
-    this.isRequired = true;
-    if (message !== undefined) {
-      this.requiredMsg = message;
-    }
+    this.req.markRequired(message);
     return this;
   }
 
   /** 显式标记为可选（默认即可选）。空值跳过所有规则、直接通过。 */
   optional(): StringSchema {
-    this.isRequired = false;
+    this.req.markOptional();
     return this;
   }
 
@@ -43,7 +33,7 @@ export class StringSchema implements AnySchema {
    */
   requiredWhen(field: string, predicate: (other: Object | null | undefined) => boolean,
     message?: string): StringSchema {
-    this.whenConds.push({ field, predicate, message: message ?? this.requiredMsg });
+    this.req.addWhen(field, predicate, message);
     return this;
   }
 
@@ -176,25 +166,11 @@ export class StringSchema implements AnySchema {
     return this;
   }
 
-  /** 计算空值时是否应报「必填」错误（含条件必填）；返回错误信息或 null。 */
-  private requiredMessage(siblings?: Record<string, Object>): string | null {
-    if (this.isRequired) {
-      return this.requiredMsg;
-    }
-    for (const c of this.whenConds) {
-      const other: Object | null | undefined = siblings === undefined ? undefined : siblings[c.field];
-      if (c.predicate(other)) {
-        return c.message;
-      }
-    }
-    return null;
-  }
-
   validate(value: Object | null | undefined, siblings?: Record<string, Object>): ValidateResult {
     const errors: ValidateError[] = [];
     const isEmpty = value === null || value === undefined || value === '';
     if (isEmpty) {
-      const reqMsg = this.requiredMessage(siblings);
+      const reqMsg = this.req.message(siblings);
       if (reqMsg !== null) {
         errors.push({ path: '', message: reqMsg });
       }
@@ -216,6 +192,10 @@ export class StringSchema implements AnySchema {
   /** 异步校验：先跑同步规则，再跑异步规则（如远程查重）。 */
   async validateAsync(value: Object | null | undefined, siblings?: Record<string, Object>): Promise<ValidateResult> {
     const base = this.validate(value, siblings);
+    // 同步规则未通过则短路，不浪费异步规则（如一次远程查重请求）
+    if (!base.valid) {
+      return base;
+    }
     const errors: ValidateError[] = base.errors.slice();
     const isEmpty = value === null || value === undefined || value === '';
     // 仅在值存在、类型正确、且有异步规则时才跑异步校验

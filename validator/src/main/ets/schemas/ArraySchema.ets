@@ -1,4 +1,5 @@
 import { AnySchema, ValidateError, ValidateResult } from '../core/types';
+import { RequiredState } from '../core/required';
 
 /** 单条数组级规则（针对整个数组，如长度）：返回 null 通过，返回字符串为错误提示。 */
 type ArrayRule = (value: Array<Object>) => string | null;
@@ -12,8 +13,7 @@ type ArrayRule = (value: Array<Object>) => string | null;
 export class ArraySchema implements AnySchema {
   private element: AnySchema;
   private rules: ArrayRule[] = [];
-  private isRequired: boolean = false;
-  private requiredMsg: string = '该字段为必填项';
+  private req: RequiredState = new RequiredState();
 
   constructor(element: AnySchema) {
     this.element = element;
@@ -21,10 +21,20 @@ export class ArraySchema implements AnySchema {
 
   /** 标记为必填。null/undefined 会报错（空数组视为已填，用 min/nonEmpty 约束长度）。 */
   required(message?: string): ArraySchema {
-    this.isRequired = true;
-    if (message !== undefined) {
-      this.requiredMsg = message;
-    }
+    this.req.markRequired(message);
+    return this;
+  }
+
+  /** 显式可选。 */
+  optional(): ArraySchema {
+    this.req.markOptional();
+    return this;
+  }
+
+  /** 条件必填：当同级字段满足 predicate 时本字段必填（仅 v.object 中生效）。 */
+  requiredWhen(field: string, predicate: (other: Object | null | undefined) => boolean,
+    message?: string): ArraySchema {
+    this.req.addWhen(field, predicate, message);
     return this;
   }
 
@@ -52,8 +62,9 @@ export class ArraySchema implements AnySchema {
   validate(value: Object | null | undefined, siblings?: Record<string, Object>): ValidateResult {
     const errors: ValidateError[] = [];
     if (value === null || value === undefined) {
-      if (this.isRequired) {
-        errors.push({ path: '', message: this.requiredMsg });
+      const reqMsg = this.req.message(siblings);
+      if (reqMsg !== null) {
+        errors.push({ path: '', message: reqMsg });
       }
       return { valid: errors.length === 0, errors };
     }
@@ -85,8 +96,9 @@ export class ArraySchema implements AnySchema {
   async validateAsync(value: Object | null | undefined, siblings?: Record<string, Object>): Promise<ValidateResult> {
     const errors: ValidateError[] = [];
     if (value === null || value === undefined) {
-      if (this.isRequired) {
-        errors.push({ path: '', message: this.requiredMsg });
+      const reqMsg = this.req.message(siblings);
+      if (reqMsg !== null) {
+        errors.push({ path: '', message: reqMsg });
       }
       return { valid: errors.length === 0, errors };
     }

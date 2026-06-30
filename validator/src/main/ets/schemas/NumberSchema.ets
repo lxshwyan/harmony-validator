@@ -1,39 +1,30 @@
 import { AnySchema, ValidateError, ValidateResult } from '../core/types';
+import { RequiredState } from '../core/required';
 
 type NumberRule = (value: number) => string | null;
 type NumberAsyncRule = (value: number) => Promise<string | null>;
-interface NumRequiredWhenCond {
-  field: string;
-  predicate: (other: Object | null | undefined) => boolean;
-  message: string;
-}
 
 /** 数字校验器，支持链式调用。 */
 export class NumberSchema implements AnySchema {
   private rules: NumberRule[] = [];
   private asyncRules: NumberAsyncRule[] = [];
-  private isRequired: boolean = false;
-  private requiredMsg: string = '该字段为必填项';
-  private whenConds: NumRequiredWhenCond[] = [];
+  private req: RequiredState = new RequiredState();
 
   required(message?: string): NumberSchema {
-    this.isRequired = true;
-    if (message !== undefined) {
-      this.requiredMsg = message;
-    }
+    this.req.markRequired(message);
     return this;
   }
 
   /** 显式标记为可选（默认即可选）。 */
   optional(): NumberSchema {
-    this.isRequired = false;
+    this.req.markOptional();
     return this;
   }
 
   /** 条件必填：当同级字段 `field` 满足 `predicate` 时本字段必填（仅 v.object 中生效）。 */
   requiredWhen(field: string, predicate: (other: Object | null | undefined) => boolean,
     message?: string): NumberSchema {
-    this.whenConds.push({ field, predicate, message: message ?? this.requiredMsg });
+    this.req.addWhen(field, predicate, message);
     return this;
   }
 
@@ -77,23 +68,11 @@ export class NumberSchema implements AnySchema {
     return this;
   }
 
-  private requiredMessage(siblings?: Record<string, Object>): string | null {
-    if (this.isRequired) {
-      return this.requiredMsg;
-    }
-    for (const c of this.whenConds) {
-      const other: Object | null | undefined = siblings === undefined ? undefined : siblings[c.field];
-      if (c.predicate(other)) {
-        return c.message;
-      }
-    }
-    return null;
-  }
-
   validate(value: Object | null | undefined, siblings?: Record<string, Object>): ValidateResult {
     const errors: ValidateError[] = [];
-    if (value === null || value === undefined) {
-      const reqMsg = this.requiredMessage(siblings);
+    // 空串也视为「空值」(ArkUI 表单未填的数字输入常是 '')，与字符串保持一致
+    if (value === null || value === undefined || value === '') {
+      const reqMsg = this.req.message(siblings);
       if (reqMsg !== null) {
         errors.push({ path: '', message: reqMsg });
       }
@@ -118,6 +97,10 @@ export class NumberSchema implements AnySchema {
   /** 异步校验：先跑同步规则，再跑异步规则。 */
   async validateAsync(value: Object | null | undefined, siblings?: Record<string, Object>): Promise<ValidateResult> {
     const base = this.validate(value, siblings);
+    // 同步规则未通过则短路
+    if (!base.valid) {
+      return base;
+    }
     const errors: ValidateError[] = base.errors.slice();
     if (value !== null && value !== undefined && typeof value === 'number'
       && !Number.isNaN(value as number) && this.asyncRules.length > 0) {
