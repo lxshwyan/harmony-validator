@@ -203,13 +203,27 @@ v.date().min('2020-01-01').validate('2019-06-01');      // 失败：早于下限
 | `v.object(shape)` | 创建对象校验器，`shape` 为 `{ 字段: 校验器 }`，支持 `.refine()` 跨字段 |
 | `v.array(element)` | 创建数组校验器，`element` 为元素校验器 |
 
-### StringSchema
+### 通用方法（所有校验器共有）
+
+下列方法 **string / number / boolean / enum / date / array / object 全部支持**，行为一致：
 
 | 方法 | 说明 |
 |---|---|
-| `.required(msg?)` | 必填（空串/未填报错） |
-| `.optional()` | 显式可选（空值跳过规则） |
-| `.requiredWhen(field, predicate, msg?)` | 条件必填：兄弟字段 `field` 满足 `predicate` 时必填 |
+| `.required(msg?)` | 必填（空值报错） |
+| `.optional()` | 显式可选，空值跳过所有规则直接通过 |
+| `.requiredWhen(field, predicate, msg?)` | 条件必填：同级字段 `field` 满足 `predicate` 时才必填（在 `v.object()` 中生效） |
+| `.validate(value)` | 同步校验，返回 `ValidateResult` |
+| `.validateAsync(value)` | 异步校验，返回 `Promise<ValidateResult>` |
+
+> `v.object().optional()` 表示该对象字段可为 `null`/`undefined`（用于可空的嵌套对象）。
+> 下面各类型表格只列「该类型特有」的方法，通用方法不再重复。
+
+### StringSchema
+
+> 通用方法（`required`/`optional`/`requiredWhen`）见上方「通用方法」节。
+
+| 方法 | 说明 |
+|---|---|
 | `.min(len, msg?)` / `.max(len, msg?)` | 长度范围 |
 | `.pattern(re, msg?)` | 自定义正则 |
 | `.custom(fn, msg)` | 自定义函数，返回 true 通过 |
@@ -232,7 +246,6 @@ v.date().min('2020-01-01').validate('2019-06-01');      // 失败：早于下限
 
 | 方法 | 说明 |
 |---|---|
-| `.required(msg?)` | 必填 |
 | `.min(n, msg?)` / `.max(n, msg?)` | 数值范围（含端点） |
 | `.integer(msg?)` | 必须为整数 |
 | `.positive(msg?)` | 必须为正数 |
@@ -241,25 +254,24 @@ v.date().min('2020-01-01').validate('2019-06-01');      // 失败：早于下限
 
 ### ArraySchema（`v.array(element)`）
 
+> 空数组视为「已填」(不触发 required)，用 `min`/`nonEmpty` 约束长度。
+
 | 方法 | 说明 |
 |---|---|
-| `.required(msg?)` | 必填（`null`/`undefined` 报错；空数组视为已填） |
 | `.min(n, msg?)` / `.max(n, msg?)` | 元素个数范围 |
 | `.nonEmpty(msg?)` | 不能为空数组 |
 
 ### BooleanSchema（`v.boolean()`）
 
+> 注意 `false` 不算空值，不会触发 required。
+
 | 方法 | 说明 |
 |---|---|
-| `.required(msg?)` | 必填 |
 | `.isTrue(msg?)` / `.isFalse(msg?)` | 必须为真 / 为假（如同意协议） |
 
 ### EnumSchema（`v.enumOf(values, msg?)`）
 
-| 方法 | 说明 |
-|---|---|
-| `.required(msg?)` | 必填 |
-| 值校验 | 值必须 `===` `values` 中某项，否则报错 |
+值必须 `===` `values` 中的某一项，否则报错。（仅特有行为，通用方法见上。）
 
 ### DateSchema（`v.date()`）
 
@@ -267,14 +279,14 @@ v.date().min('2020-01-01').validate('2019-06-01');      // 失败：早于下限
 
 | 方法 | 说明 |
 |---|---|
-| `.required(msg?)` | 必填 |
-| `.min(date, msg?)` / `.max(date, msg?)` | 不早于 / 不晚于 |
+| `.min(date, msg?)` / `.max(date, msg?)` | 不早于 / 不晚于（边界无法解析时自动忽略该规则） |
 
-### ObjectSchema 跨字段（`v.object(shape).refine(...)`）
+### ObjectSchema 特有（`v.object(shape)`）
 
 | 方法 | 说明 |
 |---|---|
-| `.refine(fn, message, path?)` | `fn` 拿到整个对象返回 `false` 时报错；`path` 指定错误归属字段（默认对象级） |
+| `.refine(fn, message, path?)` | 跨字段校验：`fn` 拿到整个对象返回 `false` 时报错；`path` 指定错误归属字段（默认对象级）。`fn` 内部应自行判空，即便抛异常也会被安全捕获 |
+| `.optional()` | 对象字段可为 `null`/`undefined` 时跳过（可空嵌套对象） |
 
 ### 同步 / 异步校验
 

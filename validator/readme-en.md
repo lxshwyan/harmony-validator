@@ -184,23 +184,37 @@ v.date().min('2020-01-01').validate('2019-06-01');     // fail (accepts Date / t
 | `v.object(shape)` | Create an object validator; supports `.refine()` for cross-field |
 | `v.array(element)` | Create an array validator; `element` is the per-element validator |
 
-### StringSchema
+### Common methods (all validators)
+
+These work on **every** validator (string / number / boolean / enum / date / array / object):
 
 | Method | Description |
 |---|---|
-| `.required(msg?)` | Required (empty string / missing fails) |
+| `.required(msg?)` | Required (empty value fails) |
+| `.optional()` | Explicitly optional; empty value skips all rules |
+| `.requiredWhen(field, predicate, msg?)` | Required only when sibling `field` matches `predicate` (inside `v.object()`) |
+| `.validate(value)` | Synchronous, returns `ValidateResult` |
+| `.validateAsync(value)` | Asynchronous, returns `Promise<ValidateResult>` |
+
+> `v.object().optional()` lets the object field be `null`/`undefined` (for nullable nested objects).
+> The per-type tables below list only type-specific methods.
+
+### StringSchema
+
+> Common methods (`required`/`optional`/`requiredWhen`) are in the "Common methods" section above.
+
+| Method | Description |
+|---|---|
 | `.min(len, msg?)` / `.max(len, msg?)` | Length range |
 | `.pattern(re, msg?)` | Custom regular expression |
 | `.custom(fn, msg)` | Custom function, returns true to pass |
 | `.email(msg?)` | Email |
 | `.phone(msg?)` | Mainland China mobile number |
-| `.idCard(msg?)` | 18-digit resident ID card (checksum) |
+| `.idCard(msg?)` | 18-digit resident ID card (birth date + checksum) |
 | `.bankCard(msg?)` | Bank card (Luhn) |
 | `.plateNumber(msg?)` | License plate (incl. new-energy) |
-| `.creditCode(msg?)` | Unified social credit code |
+| `.creditCode(msg?)` | Unified social credit code (with check digit) |
 | `.postalCode(msg?)` | Postal code |
-| `.optional()` | Explicitly optional (empty value skips rules) |
-| `.requiredWhen(field, predicate, msg?)` | Required when sibling `field` matches `predicate` |
 | `.landline(msg?)` | Landline phone |
 | `.vin(msg?)` | Vehicle VIN (17 chars) |
 | `.ipv4(msg?)` | IPv4 address |
@@ -222,25 +236,24 @@ v.date().min('2020-01-01').validate('2019-06-01');     // fail (accepts Date / t
 
 ### ArraySchema (`v.array(element)`)
 
+> An empty array counts as "present" (doesn't trigger required); use `min`/`nonEmpty` for length.
+
 | Method | Description |
 |---|---|
-| `.required(msg?)` | Required (`null`/`undefined` fails; an empty array counts as present) |
 | `.min(n, msg?)` / `.max(n, msg?)` | Element count range |
 | `.nonEmpty(msg?)` | Must not be an empty array |
 
 ### BooleanSchema (`v.boolean()`)
 
+> Note `false` is not treated as empty, so it won't trigger required.
+
 | Method | Description |
 |---|---|
-| `.required(msg?)` | Required |
 | `.isTrue(msg?)` / `.isFalse(msg?)` | Must be true / false (e.g. accept terms) |
 
 ### EnumSchema (`v.enumOf(values, msg?)`)
 
-| Method | Description |
-|---|---|
-| `.required(msg?)` | Required |
-| value check | value must `===` one of `values` |
+Value must `===` one of `values`, otherwise it fails. (Type-specific behavior only; common methods above.)
 
 ### DateSchema (`v.date()`)
 
@@ -248,14 +261,14 @@ Accepts a `Date`, a millisecond timestamp, or a parseable date string.
 
 | Method | Description |
 |---|---|
-| `.required(msg?)` | Required |
-| `.min(date, msg?)` / `.max(date, msg?)` | Not before / not after |
+| `.min(date, msg?)` / `.max(date, msg?)` | Not before / not after (an unparseable bound makes the rule a no-op) |
 
-### ObjectSchema cross-field (`v.object(shape).refine(...)`)
+### ObjectSchema-specific (`v.object(shape)`)
 
 | Method | Description |
 |---|---|
-| `.refine(fn, message, path?)` | Fails when `fn(wholeObject)` returns `false`; `path` assigns the error to a field |
+| `.refine(fn, message, path?)` | Cross-field: fails when `fn(wholeObject)` returns `false`; `path` assigns the error to a field. `fn` should null-check internally; thrown errors are caught safely |
+| `.optional()` | Skip when the object field is `null`/`undefined` (nullable nested object) |
 
 ### Sync / async validation
 
