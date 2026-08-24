@@ -37,4 +37,9 @@ if [[ -z "${SOURCE_VERSION}" || "${SOURCE_VERSION}" != "${PACKAGE_VERSION}" ]]; 
   exit 1
 fi
 
+if ! grep -Eq '"author":\{[^}]*"(email|url)":"[^"]+"' "${PACKAGE_META}"; then
+  echo "HAR author must include a non-empty email or URL for OHPM publication." >&2
+  exit 1
+fi
+
 echo "HAR security, version, and release metadata checks passed (${PACKAGE_VERSION})."
