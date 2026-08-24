@@ -39,7 +39,7 @@ GitHub 仓库页 → **Settings → Secrets and variables → Actions → New re
 > 私钥本身**不用**进 Secret —— 它已经在你 Mac 本地 `~/.ohpm/.ohpmrc` 的 `key_path` 指向处,
 > self-hosted runner 跑在同一台机器上直接复用。私钥永远不离开本机。
 
-### 3. 确认本机 ohpm 已配好(之前发 0.1.0 时已配)
+### 3. 确认本机 ohpm 已配好
 ```bash
 /Applications/DevEco-Studio.app/Contents/tools/ohpm/bin/ohpm config list | grep -E 'key_path|publish_id'
 ```
@@ -50,22 +50,22 @@ GitHub 仓库页 → **Settings → Secrets and variables → Actions → New re
 ## 日常发新版(每次迭代就这 4 步)
 
 ```bash
-# 1. 改代码,把 validator/oh-package.json5 的 version 升号(如 0.1.1 -> 0.1.2)
+# 1. 改代码,把 validator/oh-package.json5 的 version 升号(如 0.3.0 -> 0.4.0)
 #    并更新 validator/CHANGELOG.md
 
 # 2. 提交并推送源码到 GitHub
 git add -A && git commit -m "feat: xxx" && git push
 
 # 3. 打 tag(版本号要和 oh-package.json5 里的 version 完全一致)
-git tag v0.1.2
-git push origin v0.1.2        # ← 这一步触发自动发布
+git tag v0.4.0
+git push origin v0.4.0        # ← 这一步触发自动发布
 
 # 4. 去 Actions 页面看运行日志;成功后去 OHPM 个人中心等审核
 ```
 
-workflow 会自动:校验 tag 与 version 一致 → `hvigorw assembleHar` 打包 → `ohpm publish` 发布。
+workflow 会自动:校验 tag 与 version 一致 → 运行 Hypium 测试 → 构建并扫描 release HAR → `ohpm publish` 发布。
 
-> 也可以在仓库 **Actions → Publish to OHPM → Run workflow** 手动触发(`workflow_dispatch`)。
+> 也可以在仓库 **Actions → Publish to OHPM → Run workflow** 手动触发；必须填写与包元数据一致的版本号。
 
 ---
 
@@ -83,5 +83,4 @@ workflow 会自动:校验 tag 与 version 一致 → `hvigorw assembleHar` 打�
 ## 安全提醒
 - ✅ 私钥不进仓库、不进 Secret,只在本机。
 - ✅ passphrase 走 GitHub Secret(加密存储,日志里不显示)。
-- ⚠️ self-hosted runner 会执行仓库里的 workflow —— 这是**公开仓**,若将来接受外部 PR,
-  注意别让不可信 PR 触发 self-hosted runner(GitHub 默认对 fork PR 有保护,但发布类 workflow 建议只允许 tag 触发,本 workflow 已是如此)。
+- ⚠️ self-hosted runner 会执行仓库里的代码。`Verify` 只在 master push/手动运行时触发，发布 workflow 只接受 tag/手动触发；不要让外部 PR 自动运行在个人工作站上。

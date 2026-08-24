@@ -135,12 +135,16 @@ struct Index {
     list.push({ title: 'v0.3 enum：male（应通过）', result: v.enumOf(['male', 'female']).validate('male') });
     list.push({ title: 'v0.3 date：2021-06-01 晚于下限（应通过）', result: v.date().min('2020-01-01').validate('2021-06-01') });
     list.push({ title: 'v0.3 date：非法日期串（应失败）', result: v.date().validate('not-a-date') });
+    list.push({ title: 'v0.4 strict date：2024-02-29（应通过）', result: v.date().strict().validate('2024-02-29') });
+    list.push({ title: 'v0.4 strict date：2023-02-29（应失败）', result: v.date().strict().validate('2023-02-29') });
 
     // 新增中国规则:逐条 通过 + 失败
     list.push({ title: 'v0.3 固话 010-82345678（应通过）', result: v.string().landline().validate('010-82345678') });
     list.push({ title: 'v0.3 中文姓名 张三（应通过）', result: v.string().chineseName().validate('张三') });
     list.push({ title: 'v0.3 VIN LFV2A21K9C3000000（应通过）', result: v.string().vin().validate('LFV2A21K9C3000000') });
     list.push({ title: 'v0.3 VIN 非法 ABC（应失败）', result: v.string().vin().validate('ABC') });
+    list.push({ title: 'v0.4 VIN 校验位 1M8GDM9AXKP042788（应通过）', result: v.string().vinChecksum().validate('1M8GDM9AXKP042788') });
+    list.push({ title: 'v0.4 VIN 校验位错误（应失败）', result: v.string().vinChecksum().validate('1M8GDM9A1KP042788') });
     list.push({ title: 'v0.3 IPv4 192.168.1.1（应通过）', result: v.string().ipv4().validate('192.168.1.1') });
     list.push({ title: 'v0.3 IPv4 越界 256.1.1.1（应失败）', result: v.string().ipv4().validate('256.1.1.1') });
     list.push({ title: 'v0.3 QQ 12345（应通过）', result: v.string().qq().validate('12345') });

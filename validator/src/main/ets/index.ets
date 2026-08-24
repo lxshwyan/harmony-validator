@@ -22,13 +22,13 @@ export class v {
     return new NumberSchema();
   }
 
-  static object(shape: SchemaShape): ObjectSchema {
-    return new ObjectSchema(shape);
+  static object<T extends Object = Record<string, Object>>(shape: SchemaShape): ObjectSchema<T> {
+    return new ObjectSchema<T>(shape);
   }
 
   /** 数组校验：逐元素套用 element 校验器。 */
-  static array(element: AnySchema): ArraySchema {
-    return new ArraySchema(element);
+  static array<T extends Object>(element: AnySchema<T>): ArraySchema<T> {
+    return new ArraySchema<T>(element);
   }
 
   /** 布尔校验。 */
@@ -37,8 +37,8 @@ export class v {
   }
 
   /** 枚举校验：值必须在 values 集合内（enum 为关键字，故用 enumOf）。 */
-  static enumOf(values: Array<Object>, message?: string): EnumSchema {
-    return new EnumSchema(values, message);
+  static enumOf<T extends Object>(values: Array<T>, message?: string): EnumSchema<T> {
+    return new EnumSchema<T>(values, message);
   }
 
   /** 日期校验：接受 Date / 时间戳 / 日期字符串。 */

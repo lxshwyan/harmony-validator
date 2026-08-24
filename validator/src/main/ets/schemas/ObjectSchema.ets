@@ -5,13 +5,14 @@ export type SchemaShape = Record<string, AnySchema>;
 
 /** 跨字段规则：拿到整个对象判断，返回 true 通过。 */
 interface RefineRule {
-  fn: (obj: Record<string, Object>) => boolean;
+  fn: (obj: Object) => boolean;
   message: string;
   path: string;
 }
 
 /** 对象校验器：按 shape 逐字段校验，并把错误路径拼成 "字段名" 或 "父.子"。 */
-export class ObjectSchema implements AnySchema {
+export class ObjectSchema<T extends Object = Record<string, Object>> implements AnySchema<T> {
+  readonly __schemaType: T | null = null;
   private shape: SchemaShape;
   private refines: RefineRule[] = [];
   private isOptional: boolean = false;
@@ -22,7 +23,7 @@ export class ObjectSchema implements AnySchema {
   }
 
   /** 显式可选：值为 null/undefined 时直接通过（用于可空的嵌套对象字段）。 */
-  optional(): ObjectSchema {
+  optional(): ObjectSchema<T> {
     this.isOptional = true;
     return this;
   }
@@ -33,12 +34,16 @@ export class ObjectSchema implements AnySchema {
    * `fn` 内部应自行判空（字段可能缺失）；即便 `fn` 抛异常也会被捕获并按「未通过」处理，不会让整个校验崩溃。
    * @param path 错误归属的字段路径（默认空串，表示对象级错误）。
    */
-  refine(fn: (obj: Record<string, Object>) => boolean, message: string, path?: string): ObjectSchema {
-    this.refines.push({ fn, message, path: path ?? '' });
+  refine(fn: (obj: T) => boolean, message: string, path?: string): ObjectSchema<T> {
+    this.refines.push({
+      fn: (obj: Object): boolean => fn(obj as T),
+      message,
+      path: path ?? '',
+    });
     return this;
   }
 
-  private runRefines(data: Record<string, Object>, errors: ValidateError[]): void {
+  private runRefines(data: Object, errors: ValidateError[]): void {
     for (const r of this.refines) {
       let passed = false;
       try {
@@ -65,6 +70,9 @@ export class ObjectSchema implements AnySchema {
     if (value === null || value === undefined) {
       return this.emptyResult();
     }
+    if (typeof value !== 'object' || Array.isArray(value) || value instanceof Date) {
+      return { valid: false, errors: [{ path: '', message: '类型错误，期望对象' }] };
+    }
     const data = value as Record<string, Object>;
     const errors: ValidateError[] = [];
     const keys = Object.keys(this.shape);
@@ -88,12 +96,20 @@ export class ObjectSchema implements AnySchema {
     if (value === null || value === undefined) {
       return this.emptyResult();
     }
+    if (typeof value !== 'object' || Array.isArray(value) || value instanceof Date) {
+      return { valid: false, errors: [{ path: '', message: '类型错误，期望对象' }] };
+    }
     const data = value as Record<string, Object>;
     const errors: ValidateError[] = [];
     const keys = Object.keys(this.shape);
+    const tasks: Array<Promise<ValidateResult>> = [];
     for (const key of keys) {
-      const fieldSchema = this.shape[key];
-      const result = await fieldSchema.validateAsync(data[key], data);
+      tasks.push(this.shape[key].validateAsync(data[key], data));
+    }
+    const results = await Promise.all(tasks);
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      const result = results[i];
       if (!result.valid) {
         for (const e of result.errors) {
           const path = e.path === '' ? key : `${key}.${e.path}`;

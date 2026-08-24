@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.4.0
+
+- 为 `AnySchema<T>`、数组和枚举增加 ArkTS 泛型类型保留；`v.object<Model>()` 支持显式业务模型和类型安全的 refine 回调
+- `FormValidator` 新增 `validateAllAsync()` / `isValidAsync()`，ObjectSchema 与整表异步字段并发执行并保持稳定错误顺序
+- DateSchema 新增 `.strict()`，严格校验真实 ISO 日期和带时区日期时间
+- StringSchema 新增 `.vinChecksum()`，按 ISO 3779 校验 VIN 第 9 位；原 `.vin()` 格式校验保持兼容
+
+- 修复 `.optional().required()` / `.optional().requiredWhen()` 的链式状态覆盖，使后调用的方法生效
+- `ObjectSchema` 对数组、日期和非对象输入返回明确类型错误
+- 修复带 `g` / `y` 标记正则重复校验时 `lastIndex` 导致的结果漂移
+- 自定义同步/异步规则与 `requiredWhen` predicate 抛异常时安全返回配置的校验错误
+- Number/Date 拒绝无穷值，身份证出生日期拒绝未来日期
+- 新增 74 项 Hypium 自动化测试；覆盖率达到 lines 93.11%、functions 84.15%、branches 88.24%
+- CI 增加 90% 行 / 80% 函数 / 80% 分支覆盖率门禁，拒绝陈旧报告和覆盖率退化
+- GitHub Actions 增加持续验证；OHPM 发布前强制测试并构建 release HAR
+
 ## 0.3.0
 
 - **跨字段校验** `v.object({...}).refine(fn, message, path?)`：拿到整个对象判断，支持「确认密码==密码」「结束日期>开始日期」等

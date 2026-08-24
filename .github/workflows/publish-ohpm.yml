@@ -1,15 +1,23 @@
 name: Publish to OHPM
 
-# 触发:推送形如 v0.1.2 的 tag 时自动打包并发布到鸿蒙中心仓(OHPM)。
+# 触发:推送形如 v0.4.0 的 tag 时自动打包并发布到鸿蒙中心仓(OHPM)。
 # 用法:
-#   1. 改好代码,把 validator/oh-package.json5 的 version 升到 0.1.2
+#   1. 改好代码,把 validator/oh-package.json5 的 version 升到 0.4.0
 #   2. git commit && git push
-#   3. git tag v0.1.2 && git push origin v0.1.2   ← 这一步触发自动发布
+#   3. git tag v0.4.0 && git push origin v0.4.0   ← 这一步触发自动发布
 on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch: {}   # 也允许在 Actions 页面手动点触发
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '要发布的版本（必须与 oh-package.json5 一致，如 0.4.0）'
+        required: true
+        type: string
+
+permissions:
+  contents: read
 
 # ⚠️ 必须用 self-hosted runner(你自己的 Mac):
 #    鸿蒙 ohpm / SDK 是华为门禁下载的,GitHub 托管 runner 拿不到完整工具链。
@@ -17,6 +25,7 @@ on:
 jobs:
   publish:
     runs-on: [self-hosted, macOS]
+    timeout-minutes: 15
     env:
       # 库模块名(对应 build-profile.json5 里的 module 名)
       MODULE: validator
@@ -29,9 +38,15 @@ jobs:
         uses: actions/checkout@v4
 
       - name: 校验 tag 与 oh-package 版本一致
+        env:
+          MANUAL_VERSION: ${{ inputs.version }}
         run: |
           set -e
-          TAG="${GITHUB_REF_NAME#v}"
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            TAG="${MANUAL_VERSION}"
+          else
+            TAG="${GITHUB_REF_NAME#v}"
+          fi
           PKG_VER=$(grep -E '"version"' "${MODULE}/oh-package.json5" | head -1 | sed -E 's/.*"version" *: *"([^"]+)".*/\1/')
           echo "tag=$TAG  oh-package.version=$PKG_VER"
           if [ "$TAG" != "$PKG_VER" ]; then
@@ -39,16 +54,17 @@ jobs:
             exit 1
           fi
 
-      - name: 打包 HAR (hvigorw assembleHar)
+      - name: 安装依赖并执行测试
         run: |
-          set -e
-          export NODE_HOME="${DEVECO}/tools/node"
-          export PATH="$NODE_HOME/bin:$PATH"
-          export DEVECO_SDK_HOME="${DEVECO}/sdk"
-          echo "node: $(node -v)"
-          bash "${DEVECO}/tools/hvigor/bin/hvigorw" \
-            --mode module -p product=default -p "module=${MODULE}@default" \
-            assembleHar --no-daemon
+          export DEVECO_ROOT="${DEVECO}"
+          "${DEVECO}/tools/ohpm/bin/ohpm" install
+          ./scripts/test-local.sh
+
+      - name: 打包并检查 release HAR
+        run: |
+          export DEVECO_ROOT="${DEVECO}"
+          ./scripts/build-release.sh
+          ./scripts/scan-har.sh
 
       - name: 发布到 OHPM
         run: |

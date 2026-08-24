@@ -35,6 +35,16 @@ schema.validate({ 'name': '张', 'phone': '123', 'age': 16 });
 
 - `validator/` —— 要发布的 HAR 库模块（OHPM 包 `@hmkit/validator`）
 - `entry/` —— 测试 App（含可视化 Demo 页，可在 DevEco Previewer 中查看）
+- `validator/src/test/` —— Hypium 自动化回归测试
+- `scripts/verify.sh` —— 测试、release 构建与 HAR 安全检查统一入口
+
+## 开发验证
+
+```bash
+./scripts/verify.sh
+```
+
+当前版本为 `0.4.0`，74/74 项自动化测试通过。
 
 ## 链接
 

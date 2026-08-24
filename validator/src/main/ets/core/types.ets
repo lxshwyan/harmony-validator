@@ -26,7 +26,12 @@ export interface ValidateResult {
  * - siblings: 可选，当前字段所在对象（同级字段集合），供 `.requiredWhen` 等条件校验读取兄弟字段值。
  *   顶层/单值校验时为 undefined。调用方通常不需要手动传。
  */
-export interface AnySchema {
+export interface AnySchema<T = Object> {
+  /**
+   * 仅用于在 ArkTS 泛型中保留 Schema 的值类型；运行时始终为 null。
+   * ArkTS 不支持 TypeScript 的 conditional type / infer，因此使用显式类型标记。
+   */
+  readonly __schemaType: T | null;
   validate(value: Object | null | undefined, siblings?: Record<string, Object>): ValidateResult;
   validateAsync(value: Object | null | undefined, siblings?: Record<string, Object>): Promise<ValidateResult>;
 }

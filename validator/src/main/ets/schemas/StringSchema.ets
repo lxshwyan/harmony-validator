@@ -1,7 +1,7 @@
 import { AnySchema, ValidateError, ValidateResult } from '../core/types';
 import { RequiredState } from '../core/required';
 import { isMobile, isEmail, isIdCard, isBankCard, isPlateNumber, isCreditCode, isPostalCode,
-  isLandline, isVIN, isIPv4, isChineseName, isQQ, isWechat, isUrl } from '../rules/cn';
+  isLandline, isVIN, isVINChecksum, isIPv4, isChineseName, isQQ, isWechat, isUrl } from '../rules/cn';
 
 /** 单条字符串校验规则：返回 null 表示通过，返回字符串表示错误提示。 */
 type StringRule = (value: string) => string | null;
@@ -9,7 +9,8 @@ type StringRule = (value: string) => string | null;
 type StringAsyncRule = (value: string) => Promise<string | null>;
 
 /** 字符串校验器，支持链式调用。 */
-export class StringSchema implements AnySchema {
+export class StringSchema implements AnySchema<string> {
+  readonly __schemaType: string | null = null;
   private rules: StringRule[] = [];
   private asyncRules: StringAsyncRule[] = [];
   private req: RequiredState = new RequiredState();
@@ -53,14 +54,25 @@ export class StringSchema implements AnySchema {
 
   /** 自定义正则。 */
   pattern(re: RegExp, message?: string): StringSchema {
-    this.rules.push((value: string): string | null =>
-      re.test(value) ? null : (message ?? '格式不正确'));
+    this.rules.push((value: string): string | null => {
+      // 带 g/y 标记的 RegExp.test 会推进 lastIndex；每次校验前后复位，保证结果可重复。
+      re.lastIndex = 0;
+      const passed = re.test(value);
+      re.lastIndex = 0;
+      return passed ? null : (message ?? '格式不正确');
+    });
     return this;
   }
 
   /** 自定义规则。返回 true 通过。 */
   custom(fn: (value: string) => boolean, message: string): StringSchema {
-    this.rules.push((value: string): string | null => fn(value) ? null : message);
+    this.rules.push((value: string): string | null => {
+      try {
+        return fn(value) ? null : message;
+      } catch (e) {
+        return message;
+      }
+    });
     return this;
   }
 
@@ -70,8 +82,13 @@ export class StringSchema implements AnySchema {
    * 仅在调用 validateAsync 时生效；同步 validate 会忽略异步规则。
    */
   customAsync(fn: (value: string) => Promise<boolean>, message: string): StringSchema {
-    this.asyncRules.push(async (value: string): Promise<string | null> =>
-      (await fn(value)) ? null : message);
+    this.asyncRules.push(async (value: string): Promise<string | null> => {
+      try {
+        return (await fn(value)) ? null : message;
+      } catch (e) {
+        return message;
+      }
+    });
     return this;
   }
 
@@ -128,6 +145,13 @@ export class StringSchema implements AnySchema {
   vin(message?: string): StringSchema {
     this.rules.push((value: string): string | null =>
       isVIN(value) ? null : (message ?? '请输入正确的车架号'));
+    return this;
+  }
+
+  /** 车架号 VIN：17 位格式 + ISO 3779 第 9 位校验位。 */
+  vinChecksum(message?: string): StringSchema {
+    this.rules.push((value: string): string | null =>
+      isVINChecksum(value) ? null : (message ?? '请输入校验位正确的车架号'));
     return this;
   }
 

@@ -2,7 +2,8 @@ import { AnySchema, ValidateError, ValidateResult } from '../core/types';
 import { RequiredState } from '../core/required';
 
 /** 布尔校验器。常用于「必须勾选同意协议」等场景。 */
-export class BooleanSchema implements AnySchema {
+export class BooleanSchema implements AnySchema<boolean> {
+  readonly __schemaType: boolean | null = null;
   private req: RequiredState = new RequiredState();
   private mustBe: boolean | null = null;
   private mustBeMsg: string = '';

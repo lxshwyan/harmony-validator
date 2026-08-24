@@ -24,7 +24,16 @@ function isRealDate(year: number, month: number, day: number): boolean {
   }
   const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
   const days: number[] = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-  return day <= days[month - 1];
+  if (day > days[month - 1]) {
+    return false;
+  }
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth() + 1;
+  const currentDay = today.getDate();
+  return year < currentYear
+    || (year === currentYear && month < currentMonth)
+    || (year === currentYear && month === currentMonth && day <= currentDay);
 }
 
 /** 18 位居民身份证号：格式 + 出生日期合法性 + 校验位（最后一位）。 */
@@ -109,6 +118,35 @@ export function isLandline(value: string): boolean {
 /** 车架号 VIN：17 位，由数字和大写字母组成，不含 I、O、Q。 */
 export function isVIN(value: string): boolean {
   return /^[A-HJ-NPR-Z0-9]{17}$/.test(value);
+}
+
+const VIN_LETTERS: string = 'ABCDEFGHJKLMNPRSTUVWXYZ';
+const VIN_VALUES: number[] = [1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 7, 9, 2, 3, 4, 5, 6, 7, 8, 9];
+const VIN_WEIGHTS: number[] = [8, 7, 6, 5, 4, 3, 2, 10, 0, 9, 8, 7, 6, 5, 4, 3, 2];
+
+/** VIN 格式 + ISO 3779 第 9 位校验位（余数 10 对应 X）。 */
+export function isVINChecksum(value: string): boolean {
+  if (!isVIN(value)) {
+    return false;
+  }
+  let sum = 0;
+  for (let i = 0; i < value.length; i++) {
+    const char = value.charAt(i);
+    let number = 0;
+    if (/^\d$/.test(char)) {
+      number = parseInt(char, 10);
+    } else {
+      const index = VIN_LETTERS.indexOf(char);
+      if (index === -1) {
+        return false;
+      }
+      number = VIN_VALUES[index];
+    }
+    sum += number * VIN_WEIGHTS[i];
+  }
+  const remainder = sum % 11;
+  const expected = remainder === 10 ? 'X' : `${remainder}`;
+  return value.charAt(8) === expected;
 }
 
 /** IPv4 地址。 */

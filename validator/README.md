@@ -112,6 +112,27 @@ const result = await schema.validateAsync('taken');
 // { valid: false, errors: [{ path: '', message: '用户名已被占用' }] }
 ```
 
+### ArkTS 泛型类型
+
+```typescript
+class RegisterModel {
+  pwd: string = '';
+  confirm: string = '';
+}
+
+const form = v.object<RegisterModel>({
+  'pwd': v.string().required(),
+  'confirm': v.string().required(),
+}).refine((data: RegisterModel): boolean => data.pwd === data.confirm,
+  '两次密码不一致', 'confirm');
+
+const tags = v.array(v.string());          // ArraySchema<string>
+const status = v.enumOf(['draft', 'done']); // EnumSchema<string>
+```
+
+ArkTS 不支持 TypeScript 的 conditional type、`infer` 和 mapped type，因此对象模型采用
+`v.object<Model>()` 显式声明；基础类型、数组元素和枚举值由工厂自动保留泛型。
+
 ### ArkUI 表单联动（FormValidator）
 
 ```typescript
@@ -153,6 +174,9 @@ struct RegisterForm {
 }
 ```
 
+包含远程规则的提交可使用 `await validator.validateAllAsync(values)`；多个顶层字段会并发校验。
+只需要布尔结果时使用 `await validator.isValidAsync(values)`。
+
 > 完整可运行示例见仓库 `entry` 模块的 `FormDemo.ets`。
 
 ### 跨字段校验 `.refine()`（确认密码 / 日期先后）
@@ -187,6 +211,8 @@ v.string().optional().min(5).validate(''); // 通过（可选字段留空跳过�
 v.boolean().isTrue('请先同意协议').validate(false);     // 失败
 v.enumOf(['male', 'female']).validate('unknown');       // 失败：取值必须是 male / female
 v.date().min('2020-01-01').validate('2019-06-01');      // 失败：早于下限（接受 Date/时间戳/字符串）
+v.date().strict().validate('2023-02-29');               // 失败：严格 ISO 日期不存在
+v.date().strict().validate('2024-01-01T08:00:00+08:00'); // 通过：日期时间必须带时区
 ```
 
 ## API
@@ -235,7 +261,8 @@ v.date().min('2020-01-01').validate('2019-06-01');      // 失败：早于下限
 | `.creditCode(msg?)` | 统一社会信用代码 |
 | `.postalCode(msg?)` | 邮政编码 |
 | `.landline(msg?)` | 固定电话/座机 |
-| `.vin(msg?)` | 车架号 VIN（17 位） |
+| `.vin(msg?)` | 车架号 VIN 格式（17 位） |
+| `.vinChecksum(msg?)` | VIN 格式 + ISO 3779 第 9 位校验位 |
 | `.ipv4(msg?)` | IPv4 地址 |
 | `.chineseName(msg?)` | 中文姓名 |
 | `.qq(msg?)` / `.wechat(msg?)` | QQ 号 / 微信号 |
@@ -280,6 +307,7 @@ v.date().min('2020-01-01').validate('2019-06-01');      // 失败：早于下限
 | 方法 | 说明 |
 |---|---|
 | `.min(date, msg?)` / `.max(date, msg?)` | 不早于 / 不晚于（边界无法解析时自动忽略该规则） |
+| `.strict(msg?)` | 字符串必须为真实 `YYYY-MM-DD` 或带时区的 ISO 日期时间；Date/时间戳仍可用 |
 
 ### ObjectSchema 特有（`v.object(shape)`）
 
@@ -309,6 +337,8 @@ new FormValidator(shape: Record<string, AnySchema>)
 | `.validateFieldAsync(name, value)` | 异步校验单字段，返回 `Promise<string \| null>` |
 | `.validateAll(values)` | 整体校验，返回只含出错字段的 `Record<字段名, 错误信息>` |
 | `.isValid(values)` | 整体是否通过，返回 `boolean` |
+| `.validateAllAsync(values)` | 并发校验整表，返回 `Promise<Record<字段名, 错误信息>>` |
+| `.isValidAsync(values)` | 异步判断整表是否通过，返回 `Promise<boolean>` |
 
 ### 校验结果
 
@@ -325,11 +355,21 @@ interface ValidateError {
 
 ## 版本
 
-当前 `0.3.0`。演进路线：
+当前版本 `0.4.0`。演进路线：
 
 - `0.1.0` MVP：链式 API + 中国本地化规则 + 对象校验
 - `0.2.0`：数组校验、异步校验、深层嵌套、ArkUI 表单联动 `FormValidator`
 - `0.3.0`：跨字段校验 `.refine()`、条件/可选 `.optional()`/`.requiredWhen()`、新类型 `v.boolean()`/`v.enumOf()`/`v.date()`、新增中国规则（固话/VIN/IPv4/中文姓名/QQ/微信/URL）
+- `0.4.0`：泛型 Schema、整表异步校验、严格 ISO 日期、VIN 校验位、正确性修复与发布安全基线
+
+## 开发与验证
+
+```bash
+./scripts/verify.sh
+```
+
+该命令会安装依赖、运行 Hypium 本地测试、检查覆盖率门槛、构建 release HAR，并检查包内敏感发布信息和 release 元数据。
+当前基线：74/74 测试通过；行覆盖率 93.11%、函数 84.15%、分支 88.24%。发布门槛分别为 90% / 80% / 80%，报告生成在 `validator/.test/default/outputs/test/reports/`。
 
 完整变更见 [CHANGELOG](./CHANGELOG.md)。
 

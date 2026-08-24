@@ -5,7 +5,8 @@ type NumberRule = (value: number) => string | null;
 type NumberAsyncRule = (value: number) => Promise<string | null>;
 
 /** 数字校验器，支持链式调用。 */
-export class NumberSchema implements AnySchema {
+export class NumberSchema implements AnySchema<number> {
+  readonly __schemaType: number | null = null;
   private rules: NumberRule[] = [];
   private asyncRules: NumberAsyncRule[] = [];
   private req: RequiredState = new RequiredState();
@@ -57,14 +58,25 @@ export class NumberSchema implements AnySchema {
   }
 
   custom(fn: (value: number) => boolean, message: string): NumberSchema {
-    this.rules.push((v: number): string | null => fn(v) ? null : message);
+    this.rules.push((v: number): string | null => {
+      try {
+        return fn(v) ? null : message;
+      } catch (e) {
+        return message;
+      }
+    });
     return this;
   }
 
   /** 自定义异步规则。返回 Promise<true> 通过。仅 validateAsync 时生效。 */
   customAsync(fn: (value: number) => Promise<boolean>, message: string): NumberSchema {
-    this.asyncRules.push(async (v: number): Promise<string | null> =>
-      (await fn(v)) ? null : message);
+    this.asyncRules.push(async (v: number): Promise<string | null> => {
+      try {
+        return (await fn(v)) ? null : message;
+      } catch (e) {
+        return message;
+      }
+    });
     return this;
   }
 
@@ -82,7 +94,7 @@ export class NumberSchema implements AnySchema {
       return { valid: false, errors: [{ path: '', message: '类型错误，期望数字' }] };
     }
     const num = value as number;
-    if (Number.isNaN(num)) {
+    if (!Number.isFinite(num)) {
       return { valid: false, errors: [{ path: '', message: '不是有效的数字' }] };
     }
     for (const rule of this.rules) {
@@ -103,7 +115,7 @@ export class NumberSchema implements AnySchema {
     }
     const errors: ValidateError[] = base.errors.slice();
     if (value !== null && value !== undefined && typeof value === 'number'
-      && !Number.isNaN(value as number) && this.asyncRules.length > 0) {
+      && Number.isFinite(value as number) && this.asyncRules.length > 0) {
       const num = value as number;
       for (const rule of this.asyncRules) {
         const msg = await rule(num);

@@ -10,50 +10,51 @@ type ArrayRule = (value: Array<Object>) => string | null;
  *   v.object({ 'items': v.array(v.object({ 'name': v.string().required() })) })
  *   // 嵌套时 path = "items.0.name"
  */
-export class ArraySchema implements AnySchema {
-  private element: AnySchema;
+export class ArraySchema<T extends Object = Object> implements AnySchema<Array<T>> {
+  readonly __schemaType: Array<T> | null = null;
+  private element: AnySchema<T>;
   private rules: ArrayRule[] = [];
   private req: RequiredState = new RequiredState();
 
-  constructor(element: AnySchema) {
+  constructor(element: AnySchema<T>) {
     this.element = element;
   }
 
   /** 标记为必填。null/undefined 会报错（空数组视为已填，用 min/nonEmpty 约束长度）。 */
-  required(message?: string): ArraySchema {
+  required(message?: string): ArraySchema<T> {
     this.req.markRequired(message);
     return this;
   }
 
   /** 显式可选。 */
-  optional(): ArraySchema {
+  optional(): ArraySchema<T> {
     this.req.markOptional();
     return this;
   }
 
   /** 条件必填：当同级字段满足 predicate 时本字段必填（仅 v.object 中生效）。 */
   requiredWhen(field: string, predicate: (other: Object | null | undefined) => boolean,
-    message?: string): ArraySchema {
+    message?: string): ArraySchema<T> {
     this.req.addWhen(field, predicate, message);
     return this;
   }
 
   /** 最小元素个数。 */
-  min(len: number, message?: string): ArraySchema {
+  min(len: number, message?: string): ArraySchema<T> {
     this.rules.push((value: Array<Object>): string | null =>
       value.length >= len ? null : (message ?? `至少需要 ${len} 项`));
     return this;
   }
 
   /** 最大元素个数。 */
-  max(len: number, message?: string): ArraySchema {
+  max(len: number, message?: string): ArraySchema<T> {
     this.rules.push((value: Array<Object>): string | null =>
       value.length <= len ? null : (message ?? `最多 ${len} 项`));
     return this;
   }
 
   /** 不能为空数组。 */
-  nonEmpty(message?: string): ArraySchema {
+  nonEmpty(message?: string): ArraySchema<T> {
     this.rules.push((value: Array<Object>): string | null =>
       value.length > 0 ? null : (message ?? '至少需要 1 项'));
     return this;

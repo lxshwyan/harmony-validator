@@ -18,6 +18,7 @@ export class RequiredState {
 
   markRequired(message?: string): void {
     this.isRequired = true;
+    this.isOptional = false;
     if (message !== undefined) {
       this.requiredMsg = message;
     }
@@ -29,6 +30,7 @@ export class RequiredState {
   }
 
   addWhen(field: string, predicate: (other: Object | null | undefined) => boolean, message?: string): void {
+    this.isOptional = false;
     this.whenConds.push({ field, predicate, message: message ?? this.requiredMsg });
   }
 
@@ -42,7 +44,14 @@ export class RequiredState {
     }
     for (const c of this.whenConds) {
       const other: Object | null | undefined = siblings === undefined ? undefined : siblings[c.field];
-      if (c.predicate(other)) {
+      let matched = false;
+      try {
+        matched = c.predicate(other);
+      } catch (e) {
+        // 条件函数异常时按“条件成立”处理：空字段应安全失败，而不是让整个表单崩溃。
+        matched = true;
+      }
+      if (matched) {
         return c.message;
       }
     }

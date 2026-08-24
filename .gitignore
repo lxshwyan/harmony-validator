@@ -3,6 +3,8 @@
 **/build/
 /.hvigor/
 **/.hvigor/
+**/.test/
+**/BuildProfile.ets
 /.cxx/
 /oh_modules/
 **/oh_modules/

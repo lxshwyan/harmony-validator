@@ -111,6 +111,27 @@ const result = await schema.validateAsync('taken');
 // { valid: false, errors: [{ path: '', message: 'Username taken' }] }
 ```
 
+### ArkTS generic types
+
+```typescript
+class RegisterModel {
+  pwd: string = '';
+  confirm: string = '';
+}
+
+const form = v.object<RegisterModel>({
+  'pwd': v.string().required(),
+  'confirm': v.string().required(),
+}).refine((data: RegisterModel): boolean => data.pwd === data.confirm,
+  'Passwords do not match', 'confirm');
+
+const tags = v.array(v.string());           // ArraySchema<string>
+const status = v.enumOf(['draft', 'done']); // EnumSchema<string>
+```
+
+ArkTS does not support TypeScript conditional types, `infer`, or mapped types, so object models use an explicit
+`v.object<Model>()`. Primitive, array-element, and enum-value types are retained automatically by the factories.
+
 ### ArkUI form binding (FormValidator)
 
 ```typescript
@@ -152,6 +173,9 @@ struct RegisterForm {
 }
 ```
 
+For forms with remote rules, submit with `await validator.validateAllAsync(values)`; top-level fields run concurrently.
+Use `await validator.isValidAsync(values)` when only a boolean result is needed.
+
 > A full runnable example lives in `FormDemo.ets` under the repo's `entry` module.
 
 ### Cross-field `.refine()`, conditional `.requiredWhen()`, types
@@ -168,6 +192,8 @@ v.string().requiredWhen('type',
 v.boolean().isTrue('Please accept').validate(false);   // fail
 v.enumOf(['male', 'female']).validate('unknown');      // fail
 v.date().min('2020-01-01').validate('2019-06-01');     // fail (accepts Date / timestamp / string)
+v.date().strict().validate('2023-02-29');              // fail: nonexistent strict ISO date
+v.date().strict().validate('2024-01-01T08:00:00+08:00'); // pass: datetime includes a zone
 ```
 
 ## API
@@ -216,7 +242,8 @@ These work on **every** validator (string / number / boolean / enum / date / arr
 | `.creditCode(msg?)` | Unified social credit code (with check digit) |
 | `.postalCode(msg?)` | Postal code |
 | `.landline(msg?)` | Landline phone |
-| `.vin(msg?)` | Vehicle VIN (17 chars) |
+| `.vin(msg?)` | Vehicle VIN format (17 chars) |
+| `.vinChecksum(msg?)` | VIN format plus ISO 3779 position-9 check digit |
 | `.ipv4(msg?)` | IPv4 address |
 | `.chineseName(msg?)` | Chinese name |
 | `.qq(msg?)` / `.wechat(msg?)` | QQ / WeChat id |
@@ -262,6 +289,7 @@ Accepts a `Date`, a millisecond timestamp, or a parseable date string.
 | Method | Description |
 |---|---|
 | `.min(date, msg?)` / `.max(date, msg?)` | Not before / not after (an unparseable bound makes the rule a no-op) |
+| `.strict(msg?)` | String must be a real `YYYY-MM-DD` or zoned ISO datetime; Date/timestamp remain accepted |
 
 ### ObjectSchema-specific (`v.object(shape)`)
 
@@ -291,6 +319,8 @@ new FormValidator(shape: Record<string, AnySchema>)
 | `.validateFieldAsync(name, value)` | Async single-field validation, returns `Promise<string \| null>` |
 | `.validateAll(values)` | Whole-form validation, returns a `Record<field, message>` of failing fields only |
 | `.isValid(values)` | Whether the whole form passes, returns `boolean` |
+| `.validateAllAsync(values)` | Concurrent whole-form validation, returns `Promise<Record<field, message>>` |
+| `.isValidAsync(values)` | Async whole-form validity, returns `Promise<boolean>` |
 
 ### Result
 
@@ -307,11 +337,21 @@ interface ValidateError {
 
 ## Version
 
-Current `0.3.0`. Roadmap:
+Current version: `0.4.0`. Roadmap:
 
 - `0.1.0` MVP: chainable API + China-localized rules + object validation
 - `0.2.0`: array validation, async validation, deep nesting, ArkUI form binding `FormValidator`
 - `0.3.0`: cross-field `.refine()`, conditional/optional `.optional()`/`.requiredWhen()`, new types `v.boolean()`/`v.enumOf()`/`v.date()`, more China rules (landline/VIN/IPv4/Chinese name/QQ/WeChat/URL)
+- `0.4.0`: generic schemas, async whole-form validation, strict ISO dates, VIN checksums, correctness fixes, and release security
+
+## Development and verification
+
+```bash
+./scripts/verify.sh
+```
+
+This installs dependencies, runs local Hypium tests, enforces coverage thresholds, builds a release HAR, and checks the package for publishing credentials and release metadata.
+Current baseline: 74/74 tests passing; 93.11% line, 84.15% function, and 88.24% branch coverage. Release thresholds are 90% / 80% / 80%; reports are generated under `validator/.test/default/outputs/test/reports/`.
 
 See the full [CHANGELOG](./CHANGELOG.md).
 

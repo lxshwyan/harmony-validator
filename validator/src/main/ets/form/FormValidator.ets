@@ -1,10 +1,11 @@
-import { AnySchema } from '../core/types';
+import { AnySchema, ValidateResult } from '../core/types';
 
 /**
  * 表单联动控制器。把一组「字段名 -> 校验器」包起来，给 ArkUI 表单提供：
  *   - validateField(name, value)       输入时实时校验单个字段
  *   - validateFieldAsync(name, value)  异步校验单个字段(支持 customAsync 远程查重)
  *   - validateAll(values)              提交时整体校验，返回 字段->错误 的 map
+ *   - validateAllAsync(values)         并发执行整表异步校验
  *
  * 与具体 UI 解耦：UI 只负责把值传进来、把错误显示出去，因此可配合任意
  * ArkUI 组件(TextInput / Checkbox / 自定义组件)使用。用法见 README。
@@ -56,8 +57,34 @@ export class FormValidator {
     return errors;
   }
 
+  /**
+   * 异步整体校验。所有顶层字段并发执行，结果仍按 shape 的字段顺序归并，
+   * 适合用户名、手机号等多个远程规则同时校验。
+   */
+  async validateAllAsync(values: Record<string, Object>): Promise<Record<string, string>> {
+    const errors: Record<string, string> = {};
+    const keys = Object.keys(this.shape);
+    const tasks: Array<Promise<ValidateResult>> = [];
+    for (const key of keys) {
+      tasks.push(this.shape[key].validateAsync(values[key], values));
+    }
+    const results = await Promise.all(tasks);
+    for (let i = 0; i < keys.length; i++) {
+      const result = results[i];
+      if (!result.valid) {
+        errors[keys[i]] = result.errors[0].message;
+      }
+    }
+    return errors;
+  }
+
   /** 整体是否通过。 */
   isValid(values: Record<string, Object>): boolean {
     return Object.keys(this.validateAll(values)).length === 0;
+  }
+
+  /** 异步整体校验是否通过。 */
+  async isValidAsync(values: Record<string, Object>): Promise<boolean> {
+    return Object.keys(await this.validateAllAsync(values)).length === 0;
   }
 }

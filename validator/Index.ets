@@ -6,6 +6,6 @@ export { ObjectSchema, SchemaShape } from './src/main/ets/schemas/ObjectSchema';
 export { ArraySchema } from './src/main/ets/schemas/ArraySchema';
 export { BooleanSchema } from './src/main/ets/schemas/BooleanSchema';
 export { EnumSchema } from './src/main/ets/schemas/EnumSchema';
-export { DateSchema } from './src/main/ets/schemas/DateSchema';
+export { DateSchema, DateLike } from './src/main/ets/schemas/DateSchema';
 export { FormValidator } from './src/main/ets/form/FormValidator';
 export { AnySchema, ValidateError, ValidateResult } from './src/main/ets/core/types';
