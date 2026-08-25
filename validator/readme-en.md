@@ -8,6 +8,7 @@ Write validations like you do with `zod` / `yup`, but with high-frequency Chines
 
 - 🔗 **Chainable, declarative API** — `v.string().required().phone()`, reads like plain language
 - 🇨🇳 **China rules out of the box** — mobile number, ID card (with checksum), bank card (Luhn), license plate (incl. new-energy), unified social credit code, postal code
+- 🪶 **On-demand rules and plugins** — lite entry, 14 independent rule subpaths, custom sync/async plugins
 - 📦 **Zero dependencies**, pure ArkTS
 - 🧩 **Object / array validation** — whole-form validation with per-field error paths (incl. array indices like `items.0.name`)
 - 🪆 **Deep nesting** — objects and arrays nested to any depth
@@ -183,18 +184,63 @@ age.parse('18'); // { success: true, value: 18, errors: [] }
 `validate()` only answers whether a value is valid. Use `parse()` or `parseAsync()` to retrieve defaulted or
 transformed output. `default()` handles only `undefined`, while `nullable()` additionally accepts explicit `null`.
 
+### On-demand rules and plugins
+
+The default entry remains fully backward compatible and registers every built-in rule:
+
+```typescript
+import { v } from '@hmkit/validator';
+v.string().phone().validate('13800138000');
+```
+
+When only a few rules are needed, use the lite entry and a rule subpath:
+
+```typescript
+import { liteV } from '@hmkit/validator/lite';
+import { mobileRule, isMobile } from '@hmkit/validator/rules/mobile';
+
+const phone = liteV.string().required().use(mobileRule);
+phone.validate('13800138000');
+isMobile('13800138000'); // Pure-function usage is also available
+```
+
+Available subpaths are `mobile`, `email`, `idCard`, `bankCard`, `plateNumber`, `creditCode`, `postalCode`,
+`landline`, `vin`, `ipv4`, `chineseName`, `qq`, `wechat`, and `url`. This reduces unrelated modules in the
+application compile graph; the downloaded OHPM HAR itself still contains the complete package.
+
+Custom plugins support stable codes, localization, and optional asynchronous validation:
+
+```typescript
+import { liteV, BasicStringRulePlugin, registerStringRule } from '@hmkit/validator/lite';
+
+const slugRule = new BasicStringRulePlugin(
+  'slug',
+  'business_slug',
+  '只能包含小写字母、数字和减号',
+  (value: string): boolean => /^[a-z0-9-]+$/.test(value),
+  { 'en-US': 'Only lowercase letters, numbers, and hyphens are allowed' },
+);
+
+liteV.string().label('Slug').use(slugRule);
+registerStringRule(slugRule);
+liteV.string().useRegistered('slug');
+```
+
+Thrown predicates and rejected asynchronous plugin promises become configured validation errors instead of crashing the form.
+
 ### ArkUI form binding (FormValidator)
 
 ```typescript
-import { v, FormValidator } from '@hmkit/validator';
+import { v, FormTrigger, FormValidator } from '@hmkit/validator';
 
 @Entry
 @Component
 struct RegisterForm {
   private validator: FormValidator = new FormValidator({
     'username': v.string().required('Username required').min(3),
-    'phone':    v.string().required().phone(),
-    'age':      v.number().required().integer().min(18, 'Must be 18+'),
+  }, {
+    'debounceMs': 300,
+    'fields': { 'username': { 'triggers': [FormTrigger.CHANGE] } },
   });
 
   @State username: string = '';
@@ -205,27 +251,27 @@ struct RegisterForm {
       TextInput({ placeholder: 'Username' })
         .onChange((val: string) => {
           this.username = val;
-          // Validate a single field on input; returns the error message (or null)
-          const msg = this.validator.validateField('username', val);
-          this.errors = msg === null ? {} as Record<string, string>
-                                     : { 'username': msg } as Record<string, string>;
+          // Async rules, debounce, and latest-input-wins protection are built in
+          this.validator.onChange('username', val, { 'username': val }).then((msg: string | null) => {
+            this.errors = msg === null ? {} as Record<string, string>
+                                       : { 'username': msg } as Record<string, string>;
+          });
         })
       if (this.errors['username'] !== undefined) {
         Text(this.errors['username']).fontColor('#E64340')
       }
 
-      Button('Submit').onClick(() => {
-        // Validate the whole form on submit; returns a field -> error map
-        const errs = this.validator.validateAll({ 'username': this.username });
-        this.errors = errs;
+      Button('Submit').onClick(async () => {
+        // Marks fields touched, tracks submitting, and only runs a handler when valid
+        this.errors = await this.validator.submit({ 'username': this.username });
       })
     }
   }
 }
 ```
 
-For forms with remote rules, submit with `await validator.validateAllAsync(values)`; top-level fields run concurrently.
-Use `await validator.isValidAsync(values)` when only a boolean result is needed.
+For blur validation, configure `triggers: [FormTrigger.BLUR]` and call `validator.onBlur(...)` from ArkUI `onBlur`.
+Call `dispose()` when the page is destroyed, or `reset()` before reusing the same instance.
 
 > A full runnable example lives in `FormDemo.ets` under the repo's `entry` module.
 
@@ -368,10 +414,13 @@ Every validator exposes two entries:
 | `.validate(value)` | Synchronous, returns `ValidateResult` |
 | `.validateAsync(value)` | Asynchronous, returns `Promise<ValidateResult>`; runs both sync rules and `customAsync` async rules |
 
+StringSchema also provides `.use(plugin, message?)` and `.useRegistered(name, message?)`. A plugin's asynchronous
+part runs only through `validateAsync()` or `parseAsync()`.
+
 ### FormValidator (form binding)
 
 ```typescript
-new FormValidator(shape: Record<string, AnySchema>)
+new FormValidator(shape: Record<string, AnySchema>, options?: FormValidatorOptions)
 ```
 
 | Method | Description |
@@ -382,6 +431,15 @@ new FormValidator(shape: Record<string, AnySchema>)
 | `.isValid(values)` | Whether the whole form passes, returns `boolean` |
 | `.validateAllAsync(values)` | Concurrent whole-form validation, returns `Promise<Record<field, message>>` |
 | `.isValidAsync(values)` | Async whole-form validity, returns `Promise<boolean>` |
+| `.validateOn(name, value, trigger, values?)` | Validate according to a field's `change/blur/manual` trigger policy |
+| `.onChange(...)` / `.onBlur(...)` | Async convenience methods for ArkUI input and blur events |
+| `.submit(values, handler?)` | Mark touched, validate asynchronously, and invoke handler only when valid |
+| `.getFieldState(name)` | Snapshot of `touched/dirty/validating/error` |
+| `.getState()` | Snapshot of whole-form `submitting/errors` |
+| `.reset()` / `.dispose()` | Reset reusable state / clean up pending page work |
+
+`FormValidatorOptions` supports global `triggers` and `debounceMs`, with per-field overrides under `fields[name]`.
+`dependencies` lists the source fields a field depends on; a source change revalidates each direct dependent.
 
 ### Result
 
@@ -404,15 +462,16 @@ interface ParseResult<T> {
 
 ## Version
 
-Current development version: `0.5.0`. Roadmap:
+Current development version: `0.7.0`. Roadmap:
 
 - `0.1.0` MVP: chainable API + China-localized rules + object validation
 - `0.2.0`: array validation, async validation, deep nesting, ArkUI form binding `FormValidator`
 - `0.3.0`: cross-field `.refine()`, conditional/optional `.optional()`/`.requiredWhen()`, new types `v.boolean()`/`v.enumOf()`/`v.date()`, more China rules (landline/VIN/IPv4/Chinese name/QQ/WeChat/URL)
 - `0.4.0`: generic schemas, async whole-form validation, strict ISO dates, VIN checksums, correctness fixes, and release security
 - `0.5.0`: error codes, localization, labels, literal/union, nullable/default/transform, and typed parsing
-- `0.6.0` (planned): ArkUI debounce, validation triggers, submitting/touched/dirty state, and field dependencies
-- `0.7.0` (planned): independently importable China rules, custom rule plugins, and extension APIs
+- `0.6.0`: ArkUI debounce, async race protection, validation triggers, submitting/touched/dirty state, and field dependencies
+- `0.7.0`: independently importable China rules, a lite entry, and sync/async rule plugins
+- `0.8.0` (planned): schema serialization, JSON Schema conversion, and rule metadata
 
 ## Development and verification
 
@@ -421,7 +480,7 @@ Current development version: `0.5.0`. Roadmap:
 ```
 
 This installs dependencies, runs local Hypium tests, enforces coverage thresholds, builds a release HAR, and checks the package for publishing credentials and release metadata.
-Current baseline: 119/119 tests passing; 93.87% line, 86.11% function, and 90.11% branch coverage. The suite includes single-execution parsing, sync/async equivalence, deterministic error aggregation, and repeated-run stability. Release thresholds are 90% / 80% / 80%; reports are generated under `validator/.test/default/outputs/test/reports/`.
+Current baseline: 146/146 tests passing; 94.04% line, 85.37% function, and 89.95% branch coverage. New tests cover on-demand entries, subpath consumption, plugin registration/replacement/removal, localization, sync/async failures, and legacy API compatibility. Release thresholds are 90% / 80% / 80%; reports are generated under `validator/.test/default/outputs/test/reports/`.
 
 See the full [CHANGELOG](./CHANGELOG.md).
 

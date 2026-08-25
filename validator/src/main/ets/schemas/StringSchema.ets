@@ -2,8 +2,9 @@ import { ParsableSchema, ParseResult, ValidateError, ValidateResult } from '../c
 import { RequiredState } from '../core/required';
 import { ErrorCode, issue, RuleIssue, validationError } from '../core/i18n';
 import { DefaultSchema, NullableSchema, TransformSchema } from './EffectSchemas';
-import { isMobile, isEmail, isIdCard, isBankCard, isPlateNumber, isCreditCode, isPostalCode,
-  isLandline, isVIN, isVINChecksum, isIPv4, isChineseName, isQQ, isWechat, isUrl } from '../rules/cn';
+import {
+  applyStringRule, applyStringRuleAsync, getStringRule, prepareStringRule, StringRulePlugin
+} from '../plugins/StringRulePlugin';
 
 /** 单条字符串校验规则：返回 null 表示通过，返回字符串表示错误提示。 */
 type StringRule = (value: string) => RuleIssue | null;
@@ -113,102 +114,94 @@ export class StringSchema implements ParsableSchema<string> {
     return this;
   }
 
-  email(message?: string): StringSchema {
-    this.rules.push((value: string): RuleIssue | null =>
-      isEmail(value) ? null : issue(ErrorCode.EMAIL, message));
+  /** 应用一个可按需导入的字符串规则插件。 */
+  use(plugin: StringRulePlugin, message?: string): StringSchema {
+    prepareStringRule(plugin);
+    this.rules.push((value: string): RuleIssue | null => applyStringRule(plugin, value, message));
+    if (plugin.hasAsync === true && plugin.validateAsync !== undefined) {
+      this.asyncRules.push((value: string): Promise<RuleIssue | null> =>
+        applyStringRuleAsync(plugin, value, message));
+    }
     return this;
+  }
+
+  /** 应用已通过 registerStringRule 注册的命名插件。 */
+  useRegistered(name: string, message?: string): StringSchema {
+    const plugin = getStringRule(name);
+    if (plugin === undefined) {
+      this.rules.push((_value: string): RuleIssue | null =>
+        issue(ErrorCode.PLUGIN_MISSING, message, { 'name': name }));
+      return this;
+    }
+    return this.use(plugin, message);
+  }
+
+  email(message?: string): StringSchema {
+    return this.useRegistered('email', message);
   }
 
   phone(message?: string): StringSchema {
-    this.rules.push((value: string): RuleIssue | null =>
-      isMobile(value) ? null : issue(ErrorCode.PHONE, message));
-    return this;
+    return this.useRegistered('phone', message);
   }
 
   idCard(message?: string): StringSchema {
-    this.rules.push((value: string): RuleIssue | null =>
-      isIdCard(value) ? null : issue(ErrorCode.ID_CARD, message));
-    return this;
+    return this.useRegistered('idCard', message);
   }
 
   bankCard(message?: string): StringSchema {
-    this.rules.push((value: string): RuleIssue | null =>
-      isBankCard(value) ? null : issue(ErrorCode.BANK_CARD, message));
-    return this;
+    return this.useRegistered('bankCard', message);
   }
 
   plateNumber(message?: string): StringSchema {
-    this.rules.push((value: string): RuleIssue | null =>
-      isPlateNumber(value) ? null : issue(ErrorCode.PLATE_NUMBER, message));
-    return this;
+    return this.useRegistered('plateNumber', message);
   }
 
   creditCode(message?: string): StringSchema {
-    this.rules.push((value: string): RuleIssue | null =>
-      isCreditCode(value) ? null : issue(ErrorCode.CREDIT_CODE, message));
-    return this;
+    return this.useRegistered('creditCode', message);
   }
 
   postalCode(message?: string): StringSchema {
-    this.rules.push((value: string): RuleIssue | null =>
-      isPostalCode(value) ? null : issue(ErrorCode.POSTAL_CODE, message));
-    return this;
+    return this.useRegistered('postalCode', message);
   }
 
   /** 固定电话/座机。 */
   landline(message?: string): StringSchema {
-    this.rules.push((value: string): RuleIssue | null =>
-      isLandline(value) ? null : issue(ErrorCode.LANDLINE, message));
-    return this;
+    return this.useRegistered('landline', message);
   }
 
   /** 车架号 VIN（17 位）。 */
   vin(message?: string): StringSchema {
-    this.rules.push((value: string): RuleIssue | null =>
-      isVIN(value) ? null : issue(ErrorCode.VIN, message));
-    return this;
+    return this.useRegistered('vin', message);
   }
 
   /** 车架号 VIN：17 位格式 + ISO 3779 第 9 位校验位。 */
   vinChecksum(message?: string): StringSchema {
-    this.rules.push((value: string): RuleIssue | null =>
-      isVINChecksum(value) ? null : issue(ErrorCode.VIN_CHECKSUM, message));
-    return this;
+    return this.useRegistered('vinChecksum', message);
   }
 
   /** IPv4 地址。 */
   ipv4(message?: string): StringSchema {
-    this.rules.push((value: string): RuleIssue | null =>
-      isIPv4(value) ? null : issue(ErrorCode.IPV4, message));
-    return this;
+    return this.useRegistered('ipv4', message);
   }
 
   /** 中文姓名。 */
   chineseName(message?: string): StringSchema {
-    this.rules.push((value: string): RuleIssue | null =>
-      isChineseName(value) ? null : issue(ErrorCode.CHINESE_NAME, message));
-    return this;
+    return this.useRegistered('chineseName', message);
   }
 
   /** QQ 号。 */
   qq(message?: string): StringSchema {
-    this.rules.push((value: string): RuleIssue | null =>
-      isQQ(value) ? null : issue(ErrorCode.QQ, message));
-    return this;
+    return this.useRegistered('qq', message);
   }
 
   /** 微信号。 */
   wechat(message?: string): StringSchema {
-    this.rules.push((value: string): RuleIssue | null =>
-      isWechat(value) ? null : issue(ErrorCode.WECHAT, message));
-    return this;
+    return this.useRegistered('wechat', message);
   }
 
   /** http(s) URL。 */
   url(message?: string): StringSchema {
-    this.rules.push((value: string): RuleIssue | null =>
-      isUrl(value) ? null : issue(ErrorCode.URL, message));
-    return this;
+    return this.useRegistered('url', message);
   }
 
   validate(value: Object | null | undefined, siblings?: Record<string, Object>): ValidateResult {

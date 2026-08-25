@@ -1,8 +1,13 @@
 {
   "name": "@hmkit/validator",
-  "version": "0.5.0",
+  "version": "0.7.0",
   "description": "鸿蒙 ArkTS 声明式表单/数据校验库，链式 API，内置手机号、身份证、银行卡等中国本地化规则",
   "main": "Index.ets",
+  "oh-exports": [
+    "Index.ets",
+    "lite.ets",
+    "rules"
+  ],
   "author": {
     "name": "hmkit",
     "url": "https://github.com/lxshwyan"

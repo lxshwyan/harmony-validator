@@ -50,15 +50,15 @@ GitHub 仓库页 → **Settings → Secrets and variables → Actions → New re
 ## 日常发新版(每次迭代就这 4 步)
 
 ```bash
-# 1. 改代码,把 validator/oh-package.json5 的 version 升号(如 0.4.0 -> 0.5.0)
+# 1. 改代码,把 validator/oh-package.json5 的 version 升号(如 0.6.0 -> 0.7.0)
 #    并更新 validator/CHANGELOG.md
 
 # 2. 提交并推送源码到 GitHub
 git add -A && git commit -m "feat: xxx" && git push
 
 # 3. 打 tag(版本号要和 oh-package.json5 里的 version 完全一致)
-git tag v0.5.0
-git push origin v0.5.0        # ← 这一步触发自动发布
+git tag v0.7.0
+git push origin v0.7.0        # ← 这一步触发自动发布
 
 # 4. 去 Actions 页面看运行日志;成功后去 OHPM 个人中心等审核
 ```

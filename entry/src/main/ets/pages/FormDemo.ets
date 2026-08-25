@@ -1,8 +1,10 @@
-import { v, FormValidator } from '@hmkit/validator';
+import { v, FormTrigger, FormValidator } from '@hmkit/validator';
+import { liteV } from '@hmkit/validator/lite';
+import { mobileRule } from '@hmkit/validator/rules/mobile';
 import { router } from '@kit.ArkUI';
 
 /**
- * ArkUI 表单联动 Demo：输入时实时校验，提交时整体校验。
+ * ArkUI 表单联动 Demo：防抖输入校验、失焦触发、状态与异步提交。
  * 展示 @hmkit/validator 与 ArkUI TextInput 的联动用法。
  *
  * 关键：TextInput 的 text 用 $$ 双向绑定到 @State，输入时不会重建输入框、不丢焦点。
@@ -13,8 +15,15 @@ struct FormDemo {
   // 字段名 -> 校验器；FormValidator 据此实时/整体校验
   private validator: FormValidator = new FormValidator({
     'username': v.string().required('请输入用户名').min(3, '用户名至少3位'),
-    'phone': v.string().required('请输入手机号').phone(),
+    // 轻量入口 + 手机号插件：不会因该字段额外加载其他中国规则。
+    'phone': liteV.string().required('请输入手机号').use(mobileRule),
     'age': v.number().required('请输入年龄').integer('年龄须为整数').min(18, '需年满18岁'),
+  }, {
+    'debounceMs': 300,
+    'fields': {
+      'phone': { 'triggers': [FormTrigger.BLUR] },
+      'username': { 'triggers': [FormTrigger.CHANGE] },
+    }
   });
 
   @State username: string = '';
@@ -23,6 +32,7 @@ struct FormDemo {
   @State errors: Record<string, string> = {};
   @State submitTip: string = '';
   @State submitOk: boolean = false;
+  @State submitting: boolean = false;
 
   // 把当前输入拼成校验用的值对象（age 字符串转数字）
   private currentValues(): Record<string, Object> {
@@ -45,6 +55,32 @@ struct FormDemo {
       next[name] = msg;
     }
     this.errors = next;
+  }
+
+  private async validateUsername(value: string): Promise<void> {
+    const message = await this.validator.onChange('username', value, this.currentValues());
+    this.setError('username', message);
+  }
+
+  private async validatePhone(): Promise<void> {
+    const message = await this.validator.onBlur('phone', this.phone, this.currentValues());
+    this.setError('phone', message);
+  }
+
+  private async submitForm(): Promise<void> {
+    this.submitting = true;
+    try {
+      const errs = await this.validator.submit(this.currentValues());
+      this.errors = errs;
+      this.submitOk = Object.keys(errs).length === 0;
+      this.submitTip = this.submitOk ? '✓ 校验通过，可以提交' : `✗ 还有 ${Object.keys(errs).length} 处错误`;
+    } finally {
+      this.submitting = false;
+    }
+  }
+
+  aboutToDisappear(): void {
+    this.validator.dispose();
   }
 
   @Builder
@@ -72,7 +108,9 @@ struct FormDemo {
         TextInput({ text: $$this.username, placeholder: '请输入用户名' })
           .height(44).borderRadius(8).backgroundColor('#FFFFFF')
           .borderWidth(1).borderColor(this.errors['username'] !== undefined ? '#E64340' : '#E5E5E5')
-          .onChange((val: string) => this.setError('username', this.validator.validateField('username', val)))
+          .onChange((val: string) => {
+            this.validateUsername(val);
+          })
         this.errorText('username')
       }.width('100%').alignItems(HorizontalAlign.Start).margin({ bottom: 14 })
 
@@ -83,7 +121,9 @@ struct FormDemo {
           .type(InputType.Number)
           .height(44).borderRadius(8).backgroundColor('#FFFFFF')
           .borderWidth(1).borderColor(this.errors['phone'] !== undefined ? '#E64340' : '#E5E5E5')
-          .onChange((val: string) => this.setError('phone', this.validator.validateField('phone', val)))
+          .onBlur(() => {
+            this.validatePhone();
+          })
         this.errorText('phone')
       }.width('100%').alignItems(HorizontalAlign.Start).margin({ bottom: 14 })
 
@@ -101,13 +141,11 @@ struct FormDemo {
         this.errorText('age')
       }.width('100%').alignItems(HorizontalAlign.Start).margin({ bottom: 14 })
 
-      Button('提交')
+      Button(this.submitting ? '校验中…' : '提交')
         .width('100%').height(46).margin({ top: 6 })
+        .enabled(!this.submitting)
         .onClick(() => {
-          const errs = this.validator.validateAll(this.currentValues());
-          this.errors = errs;
-          this.submitOk = Object.keys(errs).length === 0;
-          this.submitTip = this.submitOk ? '✓ 校验通过，可以提交' : `✗ 还有 ${Object.keys(errs).length} 处错误`;
+          this.submitForm();
         })
 
       if (this.submitTip !== '') {

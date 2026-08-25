@@ -10,4 +10,5 @@ cd "${PROJECT_DIR}"
 "${OHPM}" install
 "${SCRIPT_DIR}/test-local.sh"
 "${SCRIPT_DIR}/build-release.sh"
+"${SCRIPT_DIR}/check-modular-rules.sh"
 "${SCRIPT_DIR}/scan-har.sh"

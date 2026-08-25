@@ -1,10 +1,10 @@
 name: Publish to OHPM
 
-# 触发:推送形如 v0.5.0 的 tag 时自动打包并发布到鸿蒙中心仓(OHPM)。
+# 触发:推送形如 v0.7.0 的 tag 时自动打包并发布到鸿蒙中心仓(OHPM)。
 # 用法:
-#   1. 改好代码,把 validator/oh-package.json5 的 version 升到 0.5.0
+#   1. 改好代码,把 validator/oh-package.json5 的 version 升到 0.7.0
 #   2. git commit && git push
-#   3. git tag v0.5.0 && git push origin v0.5.0   ← 这一步触发自动发布
+#   3. git tag v0.7.0 && git push origin v0.7.0   ← 这一步触发自动发布
 on:
   push:
     tags:
@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: '要发布的版本（必须与 oh-package.json5 一致，如 0.5.0）'
+        description: '要发布的版本（必须与 oh-package.json5 一致，如 0.7.0）'
         required: true
         type: string
 

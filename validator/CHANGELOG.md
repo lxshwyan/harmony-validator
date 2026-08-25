@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.7.0
+
+- 新增 `@hmkit/validator/lite` 轻量入口，不自动加载全部中国规则
+- 手机号、身份证、银行卡、车牌、信用代码、VIN 等 14 组规则提供 `@hmkit/validator/rules/*` 独立子路径
+- 新增 `StringRulePlugin`、`BasicStringRulePlugin` 与 `.use(plugin)`，支持稳定错误码、字段 label 和运行时国际化
+- 插件可选提供 `validateAsync`，同步校验忽略远程部分，异步校验安全处理 false 与 Promise rejection
+- 新增命名插件 `registerStringRule()` / `useRegistered()` / `unregisterStringRule()`，同名后注册者覆盖前者
+- 兼容主入口仍自动注册全部内置规则，`v.string().phone()` 等 0.6.x 调用无需迁移
+- `cn.ets` 改为兼容聚合导出，具体规则之间不再互相静态依赖
+- 发布门禁新增轻量入口、14 个规则子路径、HAR 声明和依赖隔离检查
+- 自动化测试增至 146 项；覆盖率达到 lines 94.04%、functions 85.37%、branches 89.95%
+
+## 0.6.0
+
+- `FormValidator` 新增 `change` / `blur` / `submit` / `manual` 触发策略，支持全局默认与字段级覆盖
+- 新增全局或字段级 `debounceMs`，连续输入只执行最新一次异步校验，被替换的 Promise 也会安全结束
+- 新增字段级异步版本保护，较慢的旧请求不会覆盖最新输入的错误与 validating 状态
+- 新增 `touched` / `dirty` / `validating` 字段状态，以及 `submitting` / `errors` 整表状态快照
+- 新增字段 `dependencies`，源字段变化时自动重校验直接依赖字段，并对重复依赖去重
+- 新增 `onChange()` / `onBlur()` / `validateOn()` / `submit()` / `reset()` / `dispose()`，适配 ArkUI 事件与页面生命周期
+- 保留 0.5.x 的六项显式校验 API 与返回结构，无需迁移已有代码
+- 自动化测试增至 136 项；覆盖率达到 lines 94.21%、functions 86.39%、branches 90.68%
+
 ## 0.5.0
 
 - `ValidateError` 新增稳定错误码 `code`，内置规则均可供业务层埋点、翻译或映射 UI

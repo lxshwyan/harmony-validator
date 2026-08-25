@@ -47,6 +47,7 @@ export class ErrorCode {
   static readonly LITERAL: string = 'literal';
   static readonly UNION: string = 'union';
   static readonly TRANSFORM: string = 'transform';
+  static readonly PLUGIN_MISSING: string = 'plugin_missing';
 }
 
 export type MessageCatalog = Record<string, string>;
@@ -104,6 +105,7 @@ const ZH_CN: MessageCatalog = {
   'literal': '取值必须为 {expected}',
   'union': '取值不符合任一候选类型',
   'transform': '值转换失败',
+  'plugin_missing': '字符串规则插件未注册：{name}',
 };
 
 const EN_US: MessageCatalog = {
@@ -152,6 +154,7 @@ const EN_US: MessageCatalog = {
   'literal': 'Must equal {expected}',
   'union': 'Value does not match any union member',
   'transform': 'Value transformation failed',
+  'plugin_missing': 'String rule plugin is not registered: {name}',
 };
 
 /** 全局语言配置。默认 zh-CN；缺失词条回退到 zh-CN。 */
@@ -198,7 +201,8 @@ export class ValidatorI18n {
       const active = ValidatorI18n.catalogs.get(ValidatorI18n.currentLocale);
       template = active === undefined ? undefined : active[issue.code];
       if (template === undefined) {
-        template = ZH_CN[issue.code] ?? issue.code;
+        const fallback = ValidatorI18n.catalogs.get('zh-CN');
+        template = fallback === undefined ? issue.code : (fallback[issue.code] ?? issue.code);
       }
     }
     const templateUsesLabel = template.indexOf('{label}') !== -1;

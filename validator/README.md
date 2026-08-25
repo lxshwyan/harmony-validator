@@ -8,6 +8,7 @@
 
 - 🔗 **链式声明式 API** —— `v.string().required().phone()`，读起来像说话
 - 🇨🇳 **中国规则开箱即用** —— 手机号、身份证（含校验位）、银行卡（Luhn）、车牌（含新能源）、统一社会信用代码、邮编
+- 🪶 **按需规则与插件** —— `lite` 入口、14 个独立规则子路径、自定义同步/异步插件
 - 📦 **零依赖**、纯 ArkTS 实现
 - 🧩 **对象 / 数组校验** —— 整表校验，错误带字段路径（含数组下标，如 `items.0.name`）
 - 🪆 **深层嵌套** —— 对象、数组任意层级互相嵌套
@@ -183,18 +184,66 @@ age.parse('18'); // { success: true, value: 18, errors: [] }
 `validate()` 只回答是否有效；需要取得 default/transform 处理后的值时使用 `parse()` 或 `parseAsync()`。
 `default()` 只处理 `undefined`，不会吞掉显式 `null`；`nullable()` 只额外允许 `null`。
 
+### 中国规则按需引入与插件
+
+默认主入口完全兼容旧版，会注册全部内置规则：
+
+```typescript
+import { v } from '@hmkit/validator';
+v.string().phone().validate('13800138000');
+```
+
+只需要少数规则时，可以改用轻量入口和规则子路径：
+
+```typescript
+import { liteV } from '@hmkit/validator/lite';
+import { mobileRule, isMobile } from '@hmkit/validator/rules/mobile';
+
+const phone = liteV.string().required().use(mobileRule);
+phone.validate('13800138000');
+isMobile('13800138000'); // 也可直接使用纯函数
+```
+
+可用子路径包括 `mobile`、`email`、`idCard`、`bankCard`、`plateNumber`、`creditCode`、
+`postalCode`、`landline`、`vin`、`ipv4`、`chineseName`、`qq`、`wechat`、`url`。
+这种方式减少应用编译依赖图中的无关规则；OHPM 下载的 HAR 包本身仍包含完整功能。
+
+自定义插件同时支持错误码、国际化和可选异步校验：
+
+```typescript
+import { liteV, BasicStringRulePlugin, registerStringRule } from '@hmkit/validator/lite';
+
+const slugRule = new BasicStringRulePlugin(
+  'slug',
+  'business_slug',
+  '只能包含小写字母、数字和减号',
+  (value: string): boolean => /^[a-z0-9-]+$/.test(value),
+  { 'en-US': 'Only lowercase letters, numbers, and hyphens are allowed' },
+);
+
+// 直接绑定，适合局部规则
+liteV.string().label('Slug').use(slugRule);
+
+// 或全局注册后按名称使用；同名后注册者覆盖前者
+registerStringRule(slugRule);
+liteV.string().useRegistered('slug');
+```
+
+插件 predicate 抛异常、异步 Promise rejection 都会转成配置的校验错误，不会使表单崩溃。
+
 ### ArkUI 表单联动（FormValidator）
 
 ```typescript
-import { v, FormValidator } from '@hmkit/validator';
+import { v, FormTrigger, FormValidator } from '@hmkit/validator';
 
 @Entry
 @Component
 struct RegisterForm {
   private validator: FormValidator = new FormValidator({
     'username': v.string().required('请输入用户名').min(3),
-    'phone':    v.string().required().phone(),
-    'age':      v.number().required().integer().min(18, '需年满 18 岁'),
+  }, {
+    'debounceMs': 300,
+    'fields': { 'username': { 'triggers': [FormTrigger.CHANGE] } },
   });
 
   @State username: string = '';
@@ -205,27 +254,27 @@ struct RegisterForm {
       TextInput({ placeholder: '用户名' })
         .onChange((val: string) => {
           this.username = val;
-          // 输入时实时校验单字段；返回错误信息(或 null)
-          const msg = this.validator.validateField('username', val);
-          this.errors = msg === null ? {} as Record<string, string>
-                                     : { 'username': msg } as Record<string, string>;
+          // 支持异步规则、防抖和“最后一次输入获胜”
+          this.validator.onChange('username', val, { 'username': val }).then((msg: string | null) => {
+            this.errors = msg === null ? {} as Record<string, string>
+                                       : { 'username': msg } as Record<string, string>;
+          });
         })
       if (this.errors['username'] !== undefined) {
         Text(this.errors['username']).fontColor('#E64340')
       }
 
-      Button('提交').onClick(() => {
-        // 提交时整体校验，返回 字段->错误 的 map
-        const errs = this.validator.validateAll({ 'username': this.username });
-        this.errors = errs;
+      Button('提交').onClick(async () => {
+        // submit 会标记 touched、维护 submitting，并只在校验通过时执行处理器
+        this.errors = await this.validator.submit({ 'username': this.username });
       })
     }
   }
 }
 ```
 
-包含远程规则的提交可使用 `await validator.validateAllAsync(values)`；多个顶层字段会并发校验。
-只需要布尔结果时使用 `await validator.isValidAsync(values)`。
+需要失焦校验时可配置 `triggers: [FormTrigger.BLUR]`，并在 ArkUI `onBlur` 中调用 `validator.onBlur(...)`。
+页面销毁时调用 `validator.dispose()` 清理防抖任务；复用同一实例时调用 `reset()`。
 
 > 完整可运行示例见仓库 `entry` 模块的 `FormDemo.ets`。
 
@@ -385,10 +434,13 @@ v.date().strict().validate('2024-01-01T08:00:00+08:00'); // 通过：日期时�
 | `.validate(value)` | 同步校验，返回 `ValidateResult` |
 | `.validateAsync(value)` | 异步校验，返回 `Promise<ValidateResult>`，会同时跑同步规则与 `customAsync` 异步规则 |
 
+StringSchema 还支持 `.use(plugin, message?)` 和 `.useRegistered(name, message?)`；插件的异步部分仅在
+`validateAsync()` / `parseAsync()` 中执行。
+
 ### FormValidator（表单联动）
 
 ```typescript
-new FormValidator(shape: Record<string, AnySchema>)
+new FormValidator(shape: Record<string, AnySchema>, options?: FormValidatorOptions)
 ```
 
 | 方法 | 说明 |
@@ -399,6 +451,15 @@ new FormValidator(shape: Record<string, AnySchema>)
 | `.isValid(values)` | 整体是否通过，返回 `boolean` |
 | `.validateAllAsync(values)` | 并发校验整表，返回 `Promise<Record<字段名, 错误信息>>` |
 | `.isValidAsync(values)` | 异步判断整表是否通过，返回 `Promise<boolean>` |
+| `.validateOn(name, value, trigger, values?)` | 按字段触发策略校验；支持 `change/blur/manual` |
+| `.onChange(...)` / `.onBlur(...)` | ArkUI 输入和失焦事件的便捷异步入口 |
+| `.submit(values, handler?)` | 标记 touched、异步整表校验，并仅在通过时调用 handler |
+| `.getFieldState(name)` | 获取 `touched/dirty/validating/error` 状态快照 |
+| `.getState()` | 获取 `submitting/errors` 整表状态快照 |
+| `.reset()` / `.dispose()` | 重置可复用状态 / 页面销毁时清理任务 |
+
+`FormValidatorOptions` 支持全局 `triggers`、`debounceMs`，以及字段级 `fields[name]` 覆盖。
+字段配置中的 `dependencies` 表示“当前字段依赖哪些源字段”，源字段 change 后会自动重校验当前字段。
 
 ### 校验结果
 
@@ -421,15 +482,16 @@ interface ParseResult<T> {
 
 ## 版本
 
-当前开发版本 `0.5.0`。演进路线：
+当前开发版本 `0.7.0`。演进路线：
 
 - `0.1.0` MVP：链式 API + 中国本地化规则 + 对象校验
 - `0.2.0`：数组校验、异步校验、深层嵌套、ArkUI 表单联动 `FormValidator`
 - `0.3.0`：跨字段校验 `.refine()`、条件/可选 `.optional()`/`.requiredWhen()`、新类型 `v.boolean()`/`v.enumOf()`/`v.date()`、新增中国规则（固话/VIN/IPv4/中文姓名/QQ/微信/URL）
 - `0.4.0`：泛型 Schema、整表异步校验、严格 ISO 日期、VIN 校验位、正确性修复与发布安全基线
 - `0.5.0`：错误码、国际化、字段 label、literal/union、nullable/default/transform 与类型化 parse
-- `0.6.0`（规划）：ArkUI 防抖异步校验、触发策略、提交/touched/dirty 状态与字段依赖
-- `0.7.0`（规划）：中国规则按需导入、自定义规则插件和扩展机制
+- `0.6.0`：ArkUI 防抖异步校验、竞态保护、触发策略、提交/touched/dirty 状态与字段依赖
+- `0.7.0`：中国规则按需导入、轻量入口、同步/异步规则插件和扩展机制
+- `0.8.0`（规划）：Schema 序列化、JSON Schema 转换与规则元数据
 
 ## 开发与验证
 
@@ -438,7 +500,7 @@ interface ParseResult<T> {
 ```
 
 该命令会安装依赖、运行 Hypium 本地测试、检查覆盖率门槛、构建 release HAR，并检查包内敏感发布信息和 release 元数据。
-当前基线：119/119 测试通过；行覆盖率 93.87%、函数 86.11%、分支 90.11%。其中包含解析单次执行、同步/异步一致性、错误聚合顺序和多次重复运行等稳定性用例。发布门槛分别为 90% / 80% / 80%，报告生成在 `validator/.test/default/outputs/test/reports/`。
+当前基线：146/146 测试通过；行覆盖率 94.04%、函数 85.37%、分支 89.95%。新增用例覆盖按需入口、子路径消费、插件注册/覆盖/卸载、国际化、同步/异步异常和旧 API 兼容。发布门槛分别为 90% / 80% / 80%，报告生成在 `validator/.test/default/outputs/test/reports/`。
 
 完整变更见 [CHANGELOG](./CHANGELOG.md)。
 
