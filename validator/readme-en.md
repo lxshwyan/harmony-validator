@@ -15,6 +15,8 @@ Write validations like you do with `zod` / `yup`, but with high-frequency Chines
 - 🔗 **Cross-field validation** — `.refine()`, e.g. confirm-password match, end-date after start-date
 - 🎚️ **Conditional / optional** — `.optional()`, `.requiredWhen()` (required only when another field matches)
 - 🧮 **Many types** — string, number, boolean, enum, date, array, object
+- 🌐 **i18n and error codes** — built-in Chinese/English, custom catalogs, field labels, stable `code`
+- 🧱 **Composition and transforms** — `literal` / `union` / `nullable` / `default` / `transform`
 - 📝 **ArkUI form binding** — `FormValidator` controller that wires up to `TextInput` and other components in real time
 - 💬 **Chinese error messages** by default, every message overridable
 
@@ -132,6 +134,55 @@ const status = v.enumOf(['draft', 'done']); // EnumSchema<string>
 ArkTS does not support TypeScript conditional types, `infer`, or mapped types, so object models use an explicit
 `v.object<Model>()`. Primitive, array-element, and enum-value types are retained automatically by the factories.
 
+### Localization, field labels, and error codes
+
+```typescript
+import { v, ErrorCode } from '@hmkit/validator';
+
+v.setLocale('en-US');
+const result = v.string().label('Email').required().email().validate('bad');
+// result.errors[0] = { path: '', code: 'email', message: 'Email: Invalid email address' }
+
+if (result.errors[0].code === ErrorCode.EMAIL) {
+  // Track or map UI by stable code instead of matching display text.
+}
+
+v.addLocale('my-app', {
+  'required': '{label} is required',
+  'string_min': '{label} needs at least {min} characters',
+});
+v.setLocale('my-app');
+```
+
+Messages are resolved when `validate` / `parse` runs, so already-created schemas respond to later locale changes.
+An explicit `message` always wins. Catalog templates may use `{label}`; built-in parameters also include
+`{min}`, `{max}`, `{values}`, and `{expected}`.
+
+### Composition, defaults, and transforms
+
+```typescript
+const status = v.union<string>([
+  v.literal('draft'),
+  v.literal('done'),
+]);
+
+status.validate('draft'); // pass
+status.validate('other'); // code = 'union'
+
+const nickname = v.string().nullable().default('Guest');
+nickname.parse(undefined); // { success: true, value: 'Guest', errors: [] }
+nickname.parse(null);      // { success: true, value: null, errors: [] }
+
+const age = v.string().required().transform<number>(
+  (value: string): number => parseInt(value, 10),
+  'Could not transform age',
+);
+age.parse('18'); // { success: true, value: 18, errors: [] }
+```
+
+`validate()` only answers whether a value is valid. Use `parse()` or `parseAsync()` to retrieve defaulted or
+transformed output. `default()` handles only `undefined`, while `nullable()` additionally accepts explicit `null`.
+
 ### ArkUI form binding (FormValidator)
 
 ```typescript
@@ -209,6 +260,10 @@ v.date().strict().validate('2024-01-01T08:00:00+08:00'); // pass: datetime inclu
 | `v.date()` | Date validator (accepts `Date` / timestamp / date string) |
 | `v.object(shape)` | Create an object validator; supports `.refine()` for cross-field |
 | `v.array(element)` | Create an array validator; `element` is the per-element validator |
+| `v.literal(value, message?)` | Exact-value validator using `===` |
+| `v.union(schemas, message?)` | Composition validator; succeeds when any member succeeds |
+| `v.setLocale(locale)` / `v.getLocale()` | Set/read the current locale (`zh-CN` / `en-US` built in) |
+| `v.addLocale(locale, messages)` | Register or incrementally override a custom message catalog |
 
 ### Common methods (all validators)
 
@@ -219,8 +274,14 @@ These work on **every** validator (string / number / boolean / enum / date / arr
 | `.required(msg?)` | Required (empty value fails) |
 | `.optional()` | Explicitly optional; empty value skips all rules |
 | `.requiredWhen(field, predicate, msg?)` | Required only when sibling `field` matches `predicate` (inside `v.object()`) |
+| `.label(name)` | Add a business field name to messages without changing the error path |
+| `.nullable()` | Additionally accept explicit `null` |
+| `.default(value)` | Use a default output when the input is `undefined` |
+| `.transform(fn, msg?)` | Transform valid output; exceptions become a `transform` error |
 | `.validate(value)` | Synchronous, returns `ValidateResult` |
 | `.validateAsync(value)` | Asynchronous, returns `Promise<ValidateResult>` |
+| `.parse(value)` | Validate and return typed `ParseResult<T>` output |
+| `.parseAsync(value)` | Async validation and typed `Promise<ParseResult<T>>` output |
 
 > `v.object().optional()` lets the object field be `null`/`undefined` (for nullable nested objects).
 > The per-type tables below list only type-specific methods.
@@ -332,17 +393,26 @@ interface ValidateResult {
 interface ValidateError {
   path: string;     // field path; empty string for single-value validation
   message: string;  // error message
+  code?: string;    // stable code; always present for built-in rules
+}
+interface ParseResult<T> {
+  success: boolean;
+  value?: T;        // typed defaulted/transformed output
+  errors: ValidateError[];
 }
 ```
 
 ## Version
 
-Current version: `0.4.0`. Roadmap:
+Current development version: `0.5.0`. Roadmap:
 
 - `0.1.0` MVP: chainable API + China-localized rules + object validation
 - `0.2.0`: array validation, async validation, deep nesting, ArkUI form binding `FormValidator`
 - `0.3.0`: cross-field `.refine()`, conditional/optional `.optional()`/`.requiredWhen()`, new types `v.boolean()`/`v.enumOf()`/`v.date()`, more China rules (landline/VIN/IPv4/Chinese name/QQ/WeChat/URL)
 - `0.4.0`: generic schemas, async whole-form validation, strict ISO dates, VIN checksums, correctness fixes, and release security
+- `0.5.0`: error codes, localization, labels, literal/union, nullable/default/transform, and typed parsing
+- `0.6.0` (planned): ArkUI debounce, validation triggers, submitting/touched/dirty state, and field dependencies
+- `0.7.0` (planned): independently importable China rules, custom rule plugins, and extension APIs
 
 ## Development and verification
 
@@ -351,7 +421,7 @@ Current version: `0.4.0`. Roadmap:
 ```
 
 This installs dependencies, runs local Hypium tests, enforces coverage thresholds, builds a release HAR, and checks the package for publishing credentials and release metadata.
-Current baseline: 74/74 tests passing; 93.11% line, 84.15% function, and 88.24% branch coverage. Release thresholds are 90% / 80% / 80%; reports are generated under `validator/.test/default/outputs/test/reports/`.
+Current baseline: 119/119 tests passing; 93.87% line, 86.11% function, and 90.11% branch coverage. The suite includes single-execution parsing, sync/async equivalence, deterministic error aggregation, and repeated-run stability. Release thresholds are 90% / 80% / 80%; reports are generated under `validator/.test/default/outputs/test/reports/`.
 
 See the full [CHANGELOG](./CHANGELOG.md).
 

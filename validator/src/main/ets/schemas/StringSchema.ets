@@ -1,19 +1,40 @@
-import { AnySchema, ValidateError, ValidateResult } from '../core/types';
+import { ParsableSchema, ParseResult, ValidateError, ValidateResult } from '../core/types';
 import { RequiredState } from '../core/required';
+import { ErrorCode, issue, RuleIssue, validationError } from '../core/i18n';
+import { DefaultSchema, NullableSchema, TransformSchema } from './EffectSchemas';
 import { isMobile, isEmail, isIdCard, isBankCard, isPlateNumber, isCreditCode, isPostalCode,
   isLandline, isVIN, isVINChecksum, isIPv4, isChineseName, isQQ, isWechat, isUrl } from '../rules/cn';
 
 /** 单条字符串校验规则：返回 null 表示通过，返回字符串表示错误提示。 */
-type StringRule = (value: string) => string | null;
+type StringRule = (value: string) => RuleIssue | null;
 /** 单条异步字符串校验规则：返回 null 表示通过，返回字符串表示错误提示。 */
-type StringAsyncRule = (value: string) => Promise<string | null>;
+type StringAsyncRule = (value: string) => Promise<RuleIssue | null>;
 
 /** 字符串校验器，支持链式调用。 */
-export class StringSchema implements AnySchema<string> {
+export class StringSchema implements ParsableSchema<string> {
   readonly __schemaType: string | null = null;
   private rules: StringRule[] = [];
   private asyncRules: StringAsyncRule[] = [];
   private req: RequiredState = new RequiredState();
+  private fieldLabel: string = '';
+
+  /** 设置显示字段名；仅影响默认/自定义错误文案，不改变错误 path。 */
+  label(name: string): StringSchema {
+    this.fieldLabel = name;
+    return this;
+  }
+
+  nullable(): NullableSchema<string> {
+    return new NullableSchema<string>(this);
+  }
+
+  default(value: string): DefaultSchema<string> {
+    return new DefaultSchema<string>(this, value);
+  }
+
+  transform<U>(fn: (value: string) => U, message?: string): TransformSchema<string, U> {
+    return new TransformSchema<string, U>(this, fn, message);
+  }
 
   /** 标记为必填。空串/未填会报错。 */
   required(message?: string): StringSchema {
@@ -40,37 +61,37 @@ export class StringSchema implements AnySchema<string> {
 
   /** 最小长度。 */
   min(len: number, message?: string): StringSchema {
-    this.rules.push((value: string): string | null =>
-      value.length >= len ? null : (message ?? `长度不能少于 ${len} 个字符`));
+    this.rules.push((value: string): RuleIssue | null =>
+      value.length >= len ? null : issue(ErrorCode.STRING_MIN, message, { 'min': `${len}` }));
     return this;
   }
 
   /** 最大长度。 */
   max(len: number, message?: string): StringSchema {
-    this.rules.push((value: string): string | null =>
-      value.length <= len ? null : (message ?? `长度不能超过 ${len} 个字符`));
+    this.rules.push((value: string): RuleIssue | null =>
+      value.length <= len ? null : issue(ErrorCode.STRING_MAX, message, { 'max': `${len}` }));
     return this;
   }
 
   /** 自定义正则。 */
   pattern(re: RegExp, message?: string): StringSchema {
-    this.rules.push((value: string): string | null => {
+    this.rules.push((value: string): RuleIssue | null => {
       // 带 g/y 标记的 RegExp.test 会推进 lastIndex；每次校验前后复位，保证结果可重复。
       re.lastIndex = 0;
       const passed = re.test(value);
       re.lastIndex = 0;
-      return passed ? null : (message ?? '格式不正确');
+      return passed ? null : issue(ErrorCode.PATTERN, message);
     });
     return this;
   }
 
   /** 自定义规则。返回 true 通过。 */
   custom(fn: (value: string) => boolean, message: string): StringSchema {
-    this.rules.push((value: string): string | null => {
+    this.rules.push((value: string): RuleIssue | null => {
       try {
-        return fn(value) ? null : message;
+        return fn(value) ? null : issue(ErrorCode.CUSTOM, message);
       } catch (e) {
-        return message;
+        return issue(ErrorCode.CUSTOM, message);
       }
     });
     return this;
@@ -82,111 +103,111 @@ export class StringSchema implements AnySchema<string> {
    * 仅在调用 validateAsync 时生效；同步 validate 会忽略异步规则。
    */
   customAsync(fn: (value: string) => Promise<boolean>, message: string): StringSchema {
-    this.asyncRules.push(async (value: string): Promise<string | null> => {
+    this.asyncRules.push(async (value: string): Promise<RuleIssue | null> => {
       try {
-        return (await fn(value)) ? null : message;
+        return (await fn(value)) ? null : issue(ErrorCode.CUSTOM, message);
       } catch (e) {
-        return message;
+        return issue(ErrorCode.CUSTOM, message);
       }
     });
     return this;
   }
 
   email(message?: string): StringSchema {
-    this.rules.push((value: string): string | null =>
-      isEmail(value) ? null : (message ?? '请输入正确的邮箱地址'));
+    this.rules.push((value: string): RuleIssue | null =>
+      isEmail(value) ? null : issue(ErrorCode.EMAIL, message));
     return this;
   }
 
   phone(message?: string): StringSchema {
-    this.rules.push((value: string): string | null =>
-      isMobile(value) ? null : (message ?? '请输入正确的手机号'));
+    this.rules.push((value: string): RuleIssue | null =>
+      isMobile(value) ? null : issue(ErrorCode.PHONE, message));
     return this;
   }
 
   idCard(message?: string): StringSchema {
-    this.rules.push((value: string): string | null =>
-      isIdCard(value) ? null : (message ?? '请输入正确的身份证号'));
+    this.rules.push((value: string): RuleIssue | null =>
+      isIdCard(value) ? null : issue(ErrorCode.ID_CARD, message));
     return this;
   }
 
   bankCard(message?: string): StringSchema {
-    this.rules.push((value: string): string | null =>
-      isBankCard(value) ? null : (message ?? '请输入正确的银行卡号'));
+    this.rules.push((value: string): RuleIssue | null =>
+      isBankCard(value) ? null : issue(ErrorCode.BANK_CARD, message));
     return this;
   }
 
   plateNumber(message?: string): StringSchema {
-    this.rules.push((value: string): string | null =>
-      isPlateNumber(value) ? null : (message ?? '请输入正确的车牌号'));
+    this.rules.push((value: string): RuleIssue | null =>
+      isPlateNumber(value) ? null : issue(ErrorCode.PLATE_NUMBER, message));
     return this;
   }
 
   creditCode(message?: string): StringSchema {
-    this.rules.push((value: string): string | null =>
-      isCreditCode(value) ? null : (message ?? '请输入正确的统一社会信用代码'));
+    this.rules.push((value: string): RuleIssue | null =>
+      isCreditCode(value) ? null : issue(ErrorCode.CREDIT_CODE, message));
     return this;
   }
 
   postalCode(message?: string): StringSchema {
-    this.rules.push((value: string): string | null =>
-      isPostalCode(value) ? null : (message ?? '请输入正确的邮政编码'));
+    this.rules.push((value: string): RuleIssue | null =>
+      isPostalCode(value) ? null : issue(ErrorCode.POSTAL_CODE, message));
     return this;
   }
 
   /** 固定电话/座机。 */
   landline(message?: string): StringSchema {
-    this.rules.push((value: string): string | null =>
-      isLandline(value) ? null : (message ?? '请输入正确的固定电话'));
+    this.rules.push((value: string): RuleIssue | null =>
+      isLandline(value) ? null : issue(ErrorCode.LANDLINE, message));
     return this;
   }
 
   /** 车架号 VIN（17 位）。 */
   vin(message?: string): StringSchema {
-    this.rules.push((value: string): string | null =>
-      isVIN(value) ? null : (message ?? '请输入正确的车架号'));
+    this.rules.push((value: string): RuleIssue | null =>
+      isVIN(value) ? null : issue(ErrorCode.VIN, message));
     return this;
   }
 
   /** 车架号 VIN：17 位格式 + ISO 3779 第 9 位校验位。 */
   vinChecksum(message?: string): StringSchema {
-    this.rules.push((value: string): string | null =>
-      isVINChecksum(value) ? null : (message ?? '请输入校验位正确的车架号'));
+    this.rules.push((value: string): RuleIssue | null =>
+      isVINChecksum(value) ? null : issue(ErrorCode.VIN_CHECKSUM, message));
     return this;
   }
 
   /** IPv4 地址。 */
   ipv4(message?: string): StringSchema {
-    this.rules.push((value: string): string | null =>
-      isIPv4(value) ? null : (message ?? '请输入正确的 IPv4 地址'));
+    this.rules.push((value: string): RuleIssue | null =>
+      isIPv4(value) ? null : issue(ErrorCode.IPV4, message));
     return this;
   }
 
   /** 中文姓名。 */
   chineseName(message?: string): StringSchema {
-    this.rules.push((value: string): string | null =>
-      isChineseName(value) ? null : (message ?? '请输入正确的中文姓名'));
+    this.rules.push((value: string): RuleIssue | null =>
+      isChineseName(value) ? null : issue(ErrorCode.CHINESE_NAME, message));
     return this;
   }
 
   /** QQ 号。 */
   qq(message?: string): StringSchema {
-    this.rules.push((value: string): string | null =>
-      isQQ(value) ? null : (message ?? '请输入正确的 QQ 号'));
+    this.rules.push((value: string): RuleIssue | null =>
+      isQQ(value) ? null : issue(ErrorCode.QQ, message));
     return this;
   }
 
   /** 微信号。 */
   wechat(message?: string): StringSchema {
-    this.rules.push((value: string): string | null =>
-      isWechat(value) ? null : (message ?? '请输入正确的微信号'));
+    this.rules.push((value: string): RuleIssue | null =>
+      isWechat(value) ? null : issue(ErrorCode.WECHAT, message));
     return this;
   }
 
   /** http(s) URL。 */
   url(message?: string): StringSchema {
-    this.rules.push((value: string): string | null =>
-      isUrl(value) ? null : (message ?? '请输入正确的网址'));
+    this.rules.push((value: string): RuleIssue | null =>
+      isUrl(value) ? null : issue(ErrorCode.URL, message));
     return this;
   }
 
@@ -194,20 +215,20 @@ export class StringSchema implements AnySchema<string> {
     const errors: ValidateError[] = [];
     const isEmpty = value === null || value === undefined || value === '';
     if (isEmpty) {
-      const reqMsg = this.req.message(siblings);
-      if (reqMsg !== null) {
-        errors.push({ path: '', message: reqMsg });
+      const reqError = this.req.error(siblings, this.fieldLabel);
+      if (reqError !== null) {
+        errors.push(reqError);
       }
       return { valid: errors.length === 0, errors };
     }
     if (typeof value !== 'string') {
-      return { valid: false, errors: [{ path: '', message: '类型错误，期望字符串' }] };
+      return { valid: false, errors: [validationError(issue(ErrorCode.TYPE_STRING), this.fieldLabel)] };
     }
     const str = value as string;
     for (const rule of this.rules) {
-      const msg = rule(str);
-      if (msg !== null) {
-        errors.push({ path: '', message: msg });
+      const currentIssue = rule(str);
+      if (currentIssue !== null) {
+        errors.push(validationError(currentIssue, this.fieldLabel));
       }
     }
     return { valid: errors.length === 0, errors };
@@ -226,12 +247,25 @@ export class StringSchema implements AnySchema<string> {
     if (!isEmpty && typeof value === 'string' && this.asyncRules.length > 0) {
       const str = value as string;
       for (const rule of this.asyncRules) {
-        const msg = await rule(str);
-        if (msg !== null) {
-          errors.push({ path: '', message: msg });
+        const currentIssue = await rule(str);
+        if (currentIssue !== null) {
+          errors.push(validationError(currentIssue, this.fieldLabel));
         }
       }
     }
     return { valid: errors.length === 0, errors };
+  }
+
+  parse(value: Object | null | undefined, siblings?: Record<string, Object>): ParseResult<string> {
+    const result = this.validate(value, siblings);
+    return result.valid ? { success: true, value: value as string, errors: [] }
+      : { success: false, errors: result.errors };
+  }
+
+  async parseAsync(value: Object | null | undefined,
+    siblings?: Record<string, Object>): Promise<ParseResult<string>> {
+    const result = await this.validateAsync(value, siblings);
+    return result.valid ? { success: true, value: value as string, errors: [] }
+      : { success: false, errors: result.errors };
   }
 }

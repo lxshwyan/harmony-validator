@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0
+
+- `ValidateError` 新增稳定错误码 `code`，内置规则均可供业务层埋点、翻译或映射 UI
+- 新增运行时国际化：内置 `zh-CN` / `en-US`，支持 `v.setLocale()` 与 `v.addLocale()` 自定义语言包
+- 所有内置 Schema 新增 `.label()`，可在不改变错误 path 的情况下显示业务字段名；显式自定义消息继续优先
+- 新增 `.nullable()`、`.default()`、`.transform()`，并通过 `.parse()` / `.parseAsync()` 返回默认值或转换结果
+- 新增 `v.literal()` 与 `v.union()`；union 任一候选通过即通过，全部失败时返回单一稳定错误
+- 对象与数组解析支持嵌套 default/transform，第三方旧 `AnySchema` 没有 parse 时安全回退为原值
+- 修复 Object/Array `parse` 与 `parseAsync` 重复执行子规则/转换的问题，并保持嵌套错误路径和稳定顺序
+- 修复自定义语言模板使用 `{label}` 时字段标签被重复添加的问题
+- 自动化测试增至 119 项；覆盖率达到 lines 93.87%、functions 86.11%、branches 90.11%
+
 ## 0.4.0
 
 - 为 `AnySchema<T>`、数组和枚举增加 ArkTS 泛型类型保留；`v.object<Model>()` 支持显式业务模型和类型安全的 refine 回调

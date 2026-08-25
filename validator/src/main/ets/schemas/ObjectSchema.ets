@@ -1,4 +1,6 @@
-import { AnySchema, ValidateError, ValidateResult } from '../core/types';
+import { AnySchema, ParsableSchema, ParseResult, ValidateError, ValidateResult } from '../core/types';
+import { ErrorCode, issue, validationError } from '../core/i18n';
+import { DefaultSchema, NullableSchema, parseSchema, parseSchemaAsync, TransformSchema } from './EffectSchemas';
 
 /** 对象形状：字段名 -> 对应字段的校验器。 */
 export type SchemaShape = Record<string, AnySchema>;
@@ -11,15 +13,33 @@ interface RefineRule {
 }
 
 /** 对象校验器：按 shape 逐字段校验，并把错误路径拼成 "字段名" 或 "父.子"。 */
-export class ObjectSchema<T extends Object = Record<string, Object>> implements AnySchema<T> {
+export class ObjectSchema<T extends Object = Record<string, Object>> implements ParsableSchema<T> {
   readonly __schemaType: T | null = null;
   private shape: SchemaShape;
   private refines: RefineRule[] = [];
   private isOptional: boolean = false;
-  private emptyMsg: string = '对象不能为空';
+  private emptyMsg?: string;
+  private fieldLabel: string = '';
 
   constructor(shape: SchemaShape) {
     this.shape = shape;
+  }
+
+  label(name: string): ObjectSchema<T> {
+    this.fieldLabel = name;
+    return this;
+  }
+
+  nullable(): NullableSchema<T> {
+    return new NullableSchema<T>(this);
+  }
+
+  default(value: T): DefaultSchema<T> {
+    return new DefaultSchema<T>(this, value);
+  }
+
+  transform<U>(fn: (value: T) => U, message?: string): TransformSchema<T, U> {
+    return new TransformSchema<T, U>(this, fn, message);
   }
 
   /** 显式可选：值为 null/undefined 时直接通过（用于可空的嵌套对象字段）。 */
@@ -53,7 +73,7 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
         passed = false;
       }
       if (!passed) {
-        errors.push({ path: r.path, message: r.message });
+        errors.push(validationError(issue(ErrorCode.REFINE, r.message), this.fieldLabel, r.path));
       }
     }
   }
@@ -63,7 +83,8 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
     if (this.isOptional) {
       return { valid: true, errors: [] };
     }
-    return { valid: false, errors: [{ path: '', message: this.emptyMsg }] };
+    return { valid: false, errors: [validationError(issue(ErrorCode.OBJECT_REQUIRED,
+      this.emptyMsg), this.fieldLabel)] };
   }
 
   validate(value: Object | null | undefined, siblings?: Record<string, Object>): ValidateResult {
@@ -71,7 +92,7 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
       return this.emptyResult();
     }
     if (typeof value !== 'object' || Array.isArray(value) || value instanceof Date) {
-      return { valid: false, errors: [{ path: '', message: '类型错误，期望对象' }] };
+      return { valid: false, errors: [validationError(issue(ErrorCode.TYPE_OBJECT), this.fieldLabel)] };
     }
     const data = value as Record<string, Object>;
     const errors: ValidateError[] = [];
@@ -83,7 +104,7 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
       if (!result.valid) {
         for (const e of result.errors) {
           const path = e.path === '' ? key : `${key}.${e.path}`;
-          errors.push({ path: path, message: e.message });
+          errors.push({ path: path, message: e.message, code: e.code });
         }
       }
     }
@@ -97,7 +118,7 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
       return this.emptyResult();
     }
     if (typeof value !== 'object' || Array.isArray(value) || value instanceof Date) {
-      return { valid: false, errors: [{ path: '', message: '类型错误，期望对象' }] };
+      return { valid: false, errors: [validationError(issue(ErrorCode.TYPE_OBJECT), this.fieldLabel)] };
     }
     const data = value as Record<string, Object>;
     const errors: ValidateError[] = [];
@@ -113,11 +134,91 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
       if (!result.valid) {
         for (const e of result.errors) {
           const path = e.path === '' ? key : `${key}.${e.path}`;
-          errors.push({ path: path, message: e.message });
+          errors.push({ path: path, message: e.message, code: e.code });
         }
       }
     }
     this.runRefines(data, errors);
     return { valid: errors.length === 0, errors };
+  }
+
+  parse(value: Object | null | undefined, siblings?: Record<string, Object>): ParseResult<T> {
+    if (value === null || value === undefined) {
+      const empty = this.emptyResult();
+      return empty.valid ? { success: true, errors: [] } : { success: false, errors: empty.errors };
+    }
+    if (typeof value !== 'object' || Array.isArray(value) || value instanceof Date) {
+      return {
+        success: false,
+        errors: [validationError(issue(ErrorCode.TYPE_OBJECT), this.fieldLabel)],
+      };
+    }
+    const data = value as Record<string, Object>;
+    const output: Record<string, Object> = {};
+    const errors: ValidateError[] = [];
+    for (const key of Object.keys(data)) {
+      output[key] = data[key];
+    }
+    for (const key of Object.keys(this.shape)) {
+      const parsed = parseSchema(this.shape[key], data[key], data);
+      if (!parsed.success) {
+        for (const error of parsed.errors) {
+          const path = error.path === '' ? key : `${key}.${error.path}`;
+          errors.push({ path, message: error.message, code: error.code });
+        }
+      } else if (parsed.value !== undefined) {
+        output[key] = parsed.value as Object;
+      }
+    }
+    this.runRefines(data, errors);
+    if (errors.length > 0) {
+      return { success: false, errors };
+    }
+    const bridge: Object = output;
+    return { success: true, value: bridge as T, errors: [] };
+  }
+
+  async parseAsync(value: Object | null | undefined,
+    siblings?: Record<string, Object>): Promise<ParseResult<T>> {
+    if (value === null || value === undefined) {
+      const empty = this.emptyResult();
+      return empty.valid ? { success: true, errors: [] } : { success: false, errors: empty.errors };
+    }
+    if (typeof value !== 'object' || Array.isArray(value) || value instanceof Date) {
+      return {
+        success: false,
+        errors: [validationError(issue(ErrorCode.TYPE_OBJECT), this.fieldLabel)],
+      };
+    }
+    const data = value as Record<string, Object>;
+    const output: Record<string, Object> = {};
+    const errors: ValidateError[] = [];
+    for (const key of Object.keys(data)) {
+      output[key] = data[key];
+    }
+    const keys = Object.keys(this.shape);
+    const tasks: Array<Promise<ParseResult<Object>>> = [];
+    for (const key of keys) {
+      tasks.push(parseSchemaAsync<Object>(this.shape[key], data[key], data));
+    }
+    const results = await Promise.all(tasks);
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      const parsed = results[i];
+      if (!parsed.success) {
+        for (const error of parsed.errors) {
+          const path = error.path === '' ? key : `${key}.${error.path}`;
+          errors.push({ path, message: error.message, code: error.code });
+        }
+      } else if (parsed.value !== undefined) {
+        output[key] = parsed.value as Object;
+      }
+    }
+    this.runRefines(data, errors);
+    if (errors.length > 0) {
+      return { success: false, errors };
+    }
+    const bridge: Object = output;
+    return { success: true, value: bridge as T, errors: [] };
   }
 }

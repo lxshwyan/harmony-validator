@@ -1,8 +1,11 @@
+import { ValidateError } from './types';
+import { ErrorCode, issue, validationError } from './i18n';
+
 /** 条件必填：当兄弟字段满足 predicate 时该字段必填。 */
 export interface RequiredWhenCond {
   field: string;
   predicate: (other: Object | null | undefined) => boolean;
-  message: string;
+  message?: string;
 }
 
 /**
@@ -13,7 +16,7 @@ export interface RequiredWhenCond {
 export class RequiredState {
   private isRequired: boolean = false;
   private isOptional: boolean = false;
-  private requiredMsg: string = '该字段为必填项';
+  private requiredMsg?: string;
   private whenConds: RequiredWhenCond[] = [];
 
   markRequired(message?: string): void {
@@ -34,13 +37,13 @@ export class RequiredState {
     this.whenConds.push({ field, predicate, message: message ?? this.requiredMsg });
   }
 
-  /** 空值时返回应报的必填错误信息；无需报错则返回 null。 */
-  message(siblings?: Record<string, Object>): string | null {
+  /** 空值时返回结构化必填错误；无需报错则返回 null。 */
+  error(siblings?: Record<string, Object>, label?: string): ValidateError | null {
     if (this.isOptional) {
       return null;
     }
     if (this.isRequired) {
-      return this.requiredMsg;
+      return validationError(issue(ErrorCode.REQUIRED, this.requiredMsg), label);
     }
     for (const c of this.whenConds) {
       const other: Object | null | undefined = siblings === undefined ? undefined : siblings[c.field];
@@ -52,7 +55,7 @@ export class RequiredState {
         matched = true;
       }
       if (matched) {
-        return c.message;
+        return validationError(issue(ErrorCode.REQUIRED_WHEN, c.message), label);
       }
     }
     return null;

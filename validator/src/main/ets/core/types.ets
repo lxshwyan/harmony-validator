@@ -6,6 +6,8 @@
 export interface ValidateError {
   path: string;
   message: string;
+  /** 稳定的机器可读错误码；0.5.0 起内置规则都会提供。 */
+  code?: string;
 }
 
 /**
@@ -15,6 +17,13 @@ export interface ValidateError {
  */
 export interface ValidateResult {
   valid: boolean;
+  errors: ValidateError[];
+}
+
+/** 带类型的解析结果。default/transform 等会通过 value 返回处理后的值。 */
+export interface ParseResult<T> {
+  success: boolean;
+  value?: T;
   errors: ValidateError[];
 }
 
@@ -34,4 +43,13 @@ export interface AnySchema<T = Object> {
   readonly __schemaType: T | null;
   validate(value: Object | null | undefined, siblings?: Record<string, Object>): ValidateResult;
   validateAsync(value: Object | null | undefined, siblings?: Record<string, Object>): Promise<ValidateResult>;
+  /** 内置 Schema 提供的可选解析入口；保持第三方 AnySchema 实现向后兼容。 */
+  parse?(value: Object | null | undefined, siblings?: Record<string, Object>): ParseResult<T>;
+  parseAsync?(value: Object | null | undefined, siblings?: Record<string, Object>): Promise<ParseResult<T>>;
+}
+
+/** 内置 Schema 的完整接口：校验之外还可取得默认值或转换后的结果。 */
+export interface ParsableSchema<T = Object> extends AnySchema<T> {
+  parse(value: Object | null | undefined, siblings?: Record<string, Object>): ParseResult<T>;
+  parseAsync(value: Object | null | undefined, siblings?: Record<string, Object>): Promise<ParseResult<T>>;
 }

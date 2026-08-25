@@ -1,15 +1,35 @@
-import { AnySchema, ValidateError, ValidateResult } from '../core/types';
+import { ParsableSchema, ParseResult, ValidateError, ValidateResult } from '../core/types';
 import { RequiredState } from '../core/required';
+import { ErrorCode, issue, RuleIssue, validationError } from '../core/i18n';
+import { DefaultSchema, NullableSchema, TransformSchema } from './EffectSchemas';
 
-type NumberRule = (value: number) => string | null;
-type NumberAsyncRule = (value: number) => Promise<string | null>;
+type NumberRule = (value: number) => RuleIssue | null;
+type NumberAsyncRule = (value: number) => Promise<RuleIssue | null>;
 
 /** 数字校验器，支持链式调用。 */
-export class NumberSchema implements AnySchema<number> {
+export class NumberSchema implements ParsableSchema<number> {
   readonly __schemaType: number | null = null;
   private rules: NumberRule[] = [];
   private asyncRules: NumberAsyncRule[] = [];
   private req: RequiredState = new RequiredState();
+  private fieldLabel: string = '';
+
+  label(name: string): NumberSchema {
+    this.fieldLabel = name;
+    return this;
+  }
+
+  nullable(): NullableSchema<number> {
+    return new NullableSchema<number>(this);
+  }
+
+  default(value: number): DefaultSchema<number> {
+    return new DefaultSchema<number>(this, value);
+  }
+
+  transform<U>(fn: (value: number) => U, message?: string): TransformSchema<number, U> {
+    return new TransformSchema<number, U>(this, fn, message);
+  }
 
   required(message?: string): NumberSchema {
     this.req.markRequired(message);
@@ -31,38 +51,38 @@ export class NumberSchema implements AnySchema<number> {
 
   /** 最小值（含）。 */
   min(value: number, message?: string): NumberSchema {
-    this.rules.push((v: number): string | null =>
-      v >= value ? null : (message ?? `不能小于 ${value}`));
+    this.rules.push((v: number): RuleIssue | null =>
+      v >= value ? null : issue(ErrorCode.NUMBER_MIN, message, { 'min': `${value}` }));
     return this;
   }
 
   /** 最大值（含）。 */
   max(value: number, message?: string): NumberSchema {
-    this.rules.push((v: number): string | null =>
-      v <= value ? null : (message ?? `不能大于 ${value}`));
+    this.rules.push((v: number): RuleIssue | null =>
+      v <= value ? null : issue(ErrorCode.NUMBER_MAX, message, { 'max': `${value}` }));
     return this;
   }
 
   /** 必须为整数。 */
   integer(message?: string): NumberSchema {
-    this.rules.push((v: number): string | null =>
-      Number.isInteger(v) ? null : (message ?? '必须为整数'));
+    this.rules.push((v: number): RuleIssue | null =>
+      Number.isInteger(v) ? null : issue(ErrorCode.INTEGER, message));
     return this;
   }
 
   /** 必须为正数。 */
   positive(message?: string): NumberSchema {
-    this.rules.push((v: number): string | null =>
-      v > 0 ? null : (message ?? '必须为正数'));
+    this.rules.push((v: number): RuleIssue | null =>
+      v > 0 ? null : issue(ErrorCode.POSITIVE, message));
     return this;
   }
 
   custom(fn: (value: number) => boolean, message: string): NumberSchema {
-    this.rules.push((v: number): string | null => {
+    this.rules.push((v: number): RuleIssue | null => {
       try {
-        return fn(v) ? null : message;
+        return fn(v) ? null : issue(ErrorCode.CUSTOM, message);
       } catch (e) {
-        return message;
+        return issue(ErrorCode.CUSTOM, message);
       }
     });
     return this;
@@ -70,11 +90,11 @@ export class NumberSchema implements AnySchema<number> {
 
   /** 自定义异步规则。返回 Promise<true> 通过。仅 validateAsync 时生效。 */
   customAsync(fn: (value: number) => Promise<boolean>, message: string): NumberSchema {
-    this.asyncRules.push(async (v: number): Promise<string | null> => {
+    this.asyncRules.push(async (v: number): Promise<RuleIssue | null> => {
       try {
-        return (await fn(v)) ? null : message;
+        return (await fn(v)) ? null : issue(ErrorCode.CUSTOM, message);
       } catch (e) {
-        return message;
+        return issue(ErrorCode.CUSTOM, message);
       }
     });
     return this;
@@ -84,23 +104,23 @@ export class NumberSchema implements AnySchema<number> {
     const errors: ValidateError[] = [];
     // 空串也视为「空值」(ArkUI 表单未填的数字输入常是 '')，与字符串保持一致
     if (value === null || value === undefined || value === '') {
-      const reqMsg = this.req.message(siblings);
-      if (reqMsg !== null) {
-        errors.push({ path: '', message: reqMsg });
+      const reqError = this.req.error(siblings, this.fieldLabel);
+      if (reqError !== null) {
+        errors.push(reqError);
       }
       return { valid: errors.length === 0, errors };
     }
     if (typeof value !== 'number') {
-      return { valid: false, errors: [{ path: '', message: '类型错误，期望数字' }] };
+      return { valid: false, errors: [validationError(issue(ErrorCode.TYPE_NUMBER), this.fieldLabel)] };
     }
     const num = value as number;
     if (!Number.isFinite(num)) {
-      return { valid: false, errors: [{ path: '', message: '不是有效的数字' }] };
+      return { valid: false, errors: [validationError(issue(ErrorCode.INVALID_NUMBER), this.fieldLabel)] };
     }
     for (const rule of this.rules) {
-      const msg = rule(num);
-      if (msg !== null) {
-        errors.push({ path: '', message: msg });
+      const currentIssue = rule(num);
+      if (currentIssue !== null) {
+        errors.push(validationError(currentIssue, this.fieldLabel));
       }
     }
     return { valid: errors.length === 0, errors };
@@ -118,12 +138,25 @@ export class NumberSchema implements AnySchema<number> {
       && Number.isFinite(value as number) && this.asyncRules.length > 0) {
       const num = value as number;
       for (const rule of this.asyncRules) {
-        const msg = await rule(num);
-        if (msg !== null) {
-          errors.push({ path: '', message: msg });
+        const currentIssue = await rule(num);
+        if (currentIssue !== null) {
+          errors.push(validationError(currentIssue, this.fieldLabel));
         }
       }
     }
     return { valid: errors.length === 0, errors };
+  }
+
+  parse(value: Object | null | undefined, siblings?: Record<string, Object>): ParseResult<number> {
+    const result = this.validate(value, siblings);
+    return result.valid ? { success: true, value: value as number, errors: [] }
+      : { success: false, errors: result.errors };
+  }
+
+  async parseAsync(value: Object | null | undefined,
+    siblings?: Record<string, Object>): Promise<ParseResult<number>> {
+    const result = await this.validateAsync(value, siblings);
+    return result.valid ? { success: true, value: value as number, errors: [] }
+      : { success: false, errors: result.errors };
   }
 }

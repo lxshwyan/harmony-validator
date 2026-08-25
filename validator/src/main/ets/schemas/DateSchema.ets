@@ -1,8 +1,10 @@
-import { AnySchema, ValidateError, ValidateResult } from '../core/types';
+import { ParsableSchema, ParseResult, ValidateError, ValidateResult } from '../core/types';
 import { RequiredState } from '../core/required';
+import { ErrorCode, issue, RuleIssue, validationError } from '../core/i18n';
+import { DefaultSchema, NullableSchema, TransformSchema } from './EffectSchemas';
 
 export type DateLike = Date | number | string;
-type DateRule = (ms: number) => string | null;
+type DateRule = (ms: number) => RuleIssue | null;
 
 /** 把 Date / 时间戳 / 日期字符串统一转成毫秒时间戳；无法解析返回 NaN。 */
 function toMillis(value: Object): number {
@@ -67,12 +69,30 @@ function isStrictIso(value: string): boolean {
  * 日期校验器。接受 `Date` 对象、毫秒时间戳或可解析的日期字符串。
  * 支持 `min`(不早于) / `max`(不晚于)。
  */
-export class DateSchema implements AnySchema<DateLike> {
+export class DateSchema implements ParsableSchema<DateLike> {
   readonly __schemaType: DateLike | null = null;
   private rules: DateRule[] = [];
   private req: RequiredState = new RequiredState();
   private strictMode: boolean = false;
-  private strictMessage: string = '请输入严格 ISO 日期';
+  private strictMessage?: string;
+  private fieldLabel: string = '';
+
+  label(name: string): DateSchema {
+    this.fieldLabel = name;
+    return this;
+  }
+
+  nullable(): NullableSchema<DateLike> {
+    return new NullableSchema<DateLike>(this);
+  }
+
+  default(value: DateLike): DefaultSchema<DateLike> {
+    return new DefaultSchema<DateLike>(this, value);
+  }
+
+  transform<U>(fn: (value: DateLike) => U, message?: string): TransformSchema<DateLike, U> {
+    return new TransformSchema<DateLike, U>(this, fn, message);
+  }
 
   /** 必填。 */
   required(message?: string): DateSchema {
@@ -99,46 +119,47 @@ export class DateSchema implements AnySchema<DateLike> {
    */
   strict(message?: string): DateSchema {
     this.strictMode = true;
-    this.strictMessage = message ?? '请输入严格 ISO 日期';
+    this.strictMessage = message;
     return this;
   }
 
   /** 不能早于 `min`。若边界无法解析（NaN）则跳过该规则，避免静默全量拒绝。 */
   min(min: DateLike, message?: string): DateSchema {
     const bound = toMillis(min);
-    this.rules.push((ms: number): string | null =>
-      Number.isNaN(bound) || ms >= bound ? null : (message ?? '日期不能早于限定值'));
+    this.rules.push((ms: number): RuleIssue | null =>
+      Number.isNaN(bound) || ms >= bound ? null : issue(ErrorCode.DATE_MIN, message));
     return this;
   }
 
   /** 不能晚于 `max`。若边界无法解析（NaN）则跳过该规则。 */
   max(max: DateLike, message?: string): DateSchema {
     const bound = toMillis(max);
-    this.rules.push((ms: number): string | null =>
-      Number.isNaN(bound) || ms <= bound ? null : (message ?? '日期不能晚于限定值'));
+    this.rules.push((ms: number): RuleIssue | null =>
+      Number.isNaN(bound) || ms <= bound ? null : issue(ErrorCode.DATE_MAX, message));
     return this;
   }
 
   validate(value: Object | null | undefined, siblings?: Record<string, Object>): ValidateResult {
     const errors: ValidateError[] = [];
     if (value === null || value === undefined || value === '') {
-      const reqMsg = this.req.message(siblings);
-      if (reqMsg !== null) {
-        errors.push({ path: '', message: reqMsg });
+      const reqError = this.req.error(siblings, this.fieldLabel);
+      if (reqError !== null) {
+        errors.push(reqError);
       }
       return { valid: errors.length === 0, errors };
     }
     if (this.strictMode && typeof value === 'string' && !isStrictIso(value as string)) {
-      return { valid: false, errors: [{ path: '', message: this.strictMessage }] };
+      return { valid: false, errors: [validationError(issue(ErrorCode.STRICT_DATE,
+        this.strictMessage), this.fieldLabel)] };
     }
     const ms = toMillis(value);
     if (Number.isNaN(ms)) {
-      return { valid: false, errors: [{ path: '', message: '不是有效的日期' }] };
+      return { valid: false, errors: [validationError(issue(ErrorCode.INVALID_DATE), this.fieldLabel)] };
     }
     for (const rule of this.rules) {
-      const msg = rule(ms);
-      if (msg !== null) {
-        errors.push({ path: '', message: msg });
+      const currentIssue = rule(ms);
+      if (currentIssue !== null) {
+        errors.push(validationError(currentIssue, this.fieldLabel));
       }
     }
     return { valid: errors.length === 0, errors };
@@ -146,5 +167,16 @@ export class DateSchema implements AnySchema<DateLike> {
 
   async validateAsync(value: Object | null | undefined, siblings?: Record<string, Object>): Promise<ValidateResult> {
     return this.validate(value, siblings);
+  }
+
+  parse(value: Object | null | undefined, siblings?: Record<string, Object>): ParseResult<DateLike> {
+    const result = this.validate(value, siblings);
+    return result.valid ? { success: true, value: value as DateLike, errors: [] }
+      : { success: false, errors: result.errors };
+  }
+
+  async parseAsync(value: Object | null | undefined,
+    siblings?: Record<string, Object>): Promise<ParseResult<DateLike>> {
+    return this.parse(value, siblings);
   }
 }

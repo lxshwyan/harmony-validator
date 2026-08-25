@@ -15,6 +15,8 @@
 - 🔗 **跨字段校验** —— `.refine()`，如确认密码一致、结束日期晚于开始日期
 - 🎚️ **条件/可选** —— `.optional()`、`.requiredWhen()`（某字段满足条件时才必填）
 - 🧮 **多种类型** —— 字符串、数字、布尔、枚举、日期、数组、对象
+- 🌐 **国际化与错误码** —— 内置中英文、自定义语言包、字段 label 和稳定 `code`
+- 🧱 **组合与转换** —— `literal` / `union` / `nullable` / `default` / `transform`
 - 📝 **ArkUI 表单联动** —— `FormValidator` 控制器，与 `TextInput` 等组件实时联动
 - 💬 **中文错误提示** —— 默认中文，且每条都可自定义
 
@@ -133,6 +135,54 @@ const status = v.enumOf(['draft', 'done']); // EnumSchema<string>
 ArkTS 不支持 TypeScript 的 conditional type、`infer` 和 mapped type，因此对象模型采用
 `v.object<Model>()` 显式声明；基础类型、数组元素和枚举值由工厂自动保留泛型。
 
+### 国际化、字段名与错误码
+
+```typescript
+import { v, ErrorCode } from '@hmkit/validator';
+
+v.setLocale('en-US');
+const result = v.string().label('Email').required().email().validate('bad');
+// result.errors[0] = { path: '', code: 'email', message: 'Email: Invalid email address' }
+
+if (result.errors[0].code === ErrorCode.EMAIL) {
+  // 使用稳定 code 做埋点或映射 UI，不依赖具体文案
+}
+
+v.addLocale('my-app', {
+  'required': '{label}不能为空',
+  'string_min': '{label}至少需要 {min} 个字符',
+});
+v.setLocale('my-app');
+```
+
+语言在执行 `validate` / `parse` 时解析，因此已创建的 Schema 也会响应后续语言切换。
+显式传入的 `message` 始终优先；消息中可使用 `{label}`，内置参数还包括 `{min}`、`{max}`、`{values}`、`{expected}`。
+
+### 组合、默认值与转换
+
+```typescript
+const status = v.union<string>([
+  v.literal('draft'),
+  v.literal('done'),
+]);
+
+status.validate('draft'); // 通过
+status.validate('other'); // code = 'union'
+
+const nickname = v.string().nullable().default('游客');
+nickname.parse(undefined); // { success: true, value: '游客', errors: [] }
+nickname.parse(null);      // { success: true, value: null, errors: [] }
+
+const age = v.string().required().transform<number>(
+  (value: string): number => parseInt(value, 10),
+  '年龄转换失败',
+);
+age.parse('18'); // { success: true, value: 18, errors: [] }
+```
+
+`validate()` 只回答是否有效；需要取得 default/transform 处理后的值时使用 `parse()` 或 `parseAsync()`。
+`default()` 只处理 `undefined`，不会吞掉显式 `null`；`nullable()` 只额外允许 `null`。
+
 ### ArkUI 表单联动（FormValidator）
 
 ```typescript
@@ -228,6 +278,10 @@ v.date().strict().validate('2024-01-01T08:00:00+08:00'); // 通过：日期时�
 | `v.date()` | 创建日期校验器（接受 `Date`/时间戳/日期字符串） |
 | `v.object(shape)` | 创建对象校验器，`shape` 为 `{ 字段: 校验器 }`，支持 `.refine()` 跨字段 |
 | `v.array(element)` | 创建数组校验器，`element` 为元素校验器 |
+| `v.literal(value, message?)` | 创建精确值校验器，使用 `===` 比较 |
+| `v.union(schemas, message?)` | 创建组合校验器，任一候选通过即通过 |
+| `v.setLocale(locale)` / `v.getLocale()` | 切换或读取当前语言（内置 `zh-CN` / `en-US`） |
+| `v.addLocale(locale, messages)` | 注册或增量覆盖自定义语言包 |
 
 ### 通用方法（所有校验器共有）
 
@@ -238,8 +292,14 @@ v.date().strict().validate('2024-01-01T08:00:00+08:00'); // 通过：日期时�
 | `.required(msg?)` | 必填（空值报错） |
 | `.optional()` | 显式可选，空值跳过所有规则直接通过 |
 | `.requiredWhen(field, predicate, msg?)` | 条件必填：同级字段 `field` 满足 `predicate` 时才必填（在 `v.object()` 中生效） |
+| `.label(name)` | 设置错误文案中的业务字段名，不改变 path |
+| `.nullable()` | 额外允许显式 `null` |
+| `.default(value)` | 输入为 `undefined` 时使用默认输出值 |
+| `.transform(fn, msg?)` | 校验通过后转换输出；异常映射为 `transform` 错误 |
 | `.validate(value)` | 同步校验，返回 `ValidateResult` |
 | `.validateAsync(value)` | 异步校验，返回 `Promise<ValidateResult>` |
+| `.parse(value)` | 同步校验并返回 `ParseResult<T>`，包含默认/转换后的 value |
+| `.parseAsync(value)` | 异步校验并返回 `Promise<ParseResult<T>>` |
 
 > `v.object().optional()` 表示该对象字段可为 `null`/`undefined`（用于可空的嵌套对象）。
 > 下面各类型表格只列「该类型特有」的方法，通用方法不再重复。
@@ -350,17 +410,26 @@ interface ValidateResult {
 interface ValidateError {
   path: string;     // 字段路径，单值校验为空串
   message: string;  // 错误提示
+  code?: string;    // 稳定错误码；内置规则始终提供
+}
+interface ParseResult<T> {
+  success: boolean;
+  value?: T;        // default/transform 后的类型化结果
+  errors: ValidateError[];
 }
 ```
 
 ## 版本
 
-当前版本 `0.4.0`。演进路线：
+当前开发版本 `0.5.0`。演进路线：
 
 - `0.1.0` MVP：链式 API + 中国本地化规则 + 对象校验
 - `0.2.0`：数组校验、异步校验、深层嵌套、ArkUI 表单联动 `FormValidator`
 - `0.3.0`：跨字段校验 `.refine()`、条件/可选 `.optional()`/`.requiredWhen()`、新类型 `v.boolean()`/`v.enumOf()`/`v.date()`、新增中国规则（固话/VIN/IPv4/中文姓名/QQ/微信/URL）
 - `0.4.0`：泛型 Schema、整表异步校验、严格 ISO 日期、VIN 校验位、正确性修复与发布安全基线
+- `0.5.0`：错误码、国际化、字段 label、literal/union、nullable/default/transform 与类型化 parse
+- `0.6.0`（规划）：ArkUI 防抖异步校验、触发策略、提交/touched/dirty 状态与字段依赖
+- `0.7.0`（规划）：中国规则按需导入、自定义规则插件和扩展机制
 
 ## 开发与验证
 
@@ -369,7 +438,7 @@ interface ValidateError {
 ```
 
 该命令会安装依赖、运行 Hypium 本地测试、检查覆盖率门槛、构建 release HAR，并检查包内敏感发布信息和 release 元数据。
-当前基线：74/74 测试通过；行覆盖率 93.11%、函数 84.15%、分支 88.24%。发布门槛分别为 90% / 80% / 80%，报告生成在 `validator/.test/default/outputs/test/reports/`。
+当前基线：119/119 测试通过；行覆盖率 93.87%、函数 86.11%、分支 90.11%。其中包含解析单次执行、同步/异步一致性、错误聚合顺序和多次重复运行等稳定性用例。发布门槛分别为 90% / 80% / 80%，报告生成在 `validator/.test/default/outputs/test/reports/`。
 
 完整变更见 [CHANGELOG](./CHANGELOG.md)。
 

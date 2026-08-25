@@ -151,6 +151,30 @@ struct Index {
     list.push({ title: 'v0.3 微信号 abc_123（应通过）', result: v.string().wechat().validate('abc_123') });
     list.push({ title: 'v0.3 URL https://ohpm.openharmony.cn（应通过）', result: v.string().url().validate('https://ohpm.openharmony.cn') });
 
+    // —— v0.5 错误码 / 字段 label / Schema 组合与转换 ——
+    list.push({
+      title: 'v0.5 label + error code：邮箱格式错误',
+      result: v.string().label('邮箱').email().validate('bad'),
+    });
+    list.push({
+      title: 'v0.5 literal：状态只能为 ready（应失败）',
+      result: v.literal('ready').validate('done'),
+    });
+    list.push({
+      title: 'v0.5 union：draft / done 任一匹配（应通过）',
+      result: v.union<string>([v.literal('draft'), v.literal('done')]).validate('done'),
+    });
+    list.push({
+      title: 'v0.5 nullable：显式 null（应通过）',
+      result: v.string().required().nullable().validate(null),
+    });
+    list.push({
+      title: 'v0.5 transform：转换异常映射为稳定错误',
+      result: v.string().transform<number>((_value: string): number => {
+        throw new Error('demo transform failed');
+      }, '转换失败').validate('18'),
+    });
+
     return list;
   }
 
@@ -191,7 +215,7 @@ struct Index {
       .width('100%')
 
       ForEach(item.result.errors, (e: ValidateError) => {
-        Text(`· ${e.path || '值'}：${e.message}`)
+        Text(`· ${e.path || '值'} [${e.code ?? 'custom'}]：${e.message}`)
           .fontSize(13)
           .fontColor('#E64340')
           .width('100%')
