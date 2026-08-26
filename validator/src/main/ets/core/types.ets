@@ -27,6 +27,53 @@ export interface ParseResult<T> {
   errors: ValidateError[];
 }
 
+/** 可附加到任意内置 Schema 的说明信息。 */
+export interface SchemaMetadata {
+  id?: string;
+  title?: string;
+  description?: string;
+  examples?: Array<Object>;
+  deprecated?: boolean;
+}
+
+/** 一条可序列化的规则描述。 */
+export class SchemaRuleDescriptor {
+  name: string;
+  value?: Object;
+  detail?: string;
+  async: boolean = false;
+  standard: boolean = true;
+
+  constructor(name: string, value?: Object, detail?: string, asyncRule?: boolean, standard?: boolean) {
+    this.name = name;
+    this.value = value;
+    this.detail = detail;
+    this.async = asyncRule ?? false;
+    this.standard = standard ?? true;
+  }
+}
+
+/** Schema 的稳定结构描述；可直接交给 JSON.stringify 保存或审计。 */
+export class SchemaDescriptor {
+  kind: string;
+  metadata?: SchemaMetadata;
+  label?: string;
+  required: boolean = false;
+  conditionallyRequired: boolean = false;
+  rules: Array<SchemaRuleDescriptor> = [];
+  properties?: Record<string, SchemaDescriptor>;
+  items?: SchemaDescriptor;
+  options: Array<SchemaDescriptor> = [];
+  inner?: SchemaDescriptor;
+  value?: Object;
+  defaultValue?: Object;
+  unrepresentable: Array<string> = [];
+
+  constructor(kind: string) {
+    this.kind = kind;
+  }
+}
+
 /**
  * 所有 Schema 的公共接口：接收任意值，返回校验结果。
  * - validate: 同步校验。
@@ -46,6 +93,8 @@ export interface AnySchema<T = Object> {
   /** 内置 Schema 提供的可选解析入口；保持第三方 AnySchema 实现向后兼容。 */
   parse?(value: Object | null | undefined, siblings?: Record<string, Object>): ParseResult<T>;
   parseAsync?(value: Object | null | undefined, siblings?: Record<string, Object>): Promise<ParseResult<T>>;
+  /** 0.8.0 起内置 Schema 提供；第三方 Schema 可继续不实现。 */
+  describeSchema?(): SchemaDescriptor;
 }
 
 /** 内置 Schema 的完整接口：校验之外还可取得默认值或转换后的结果。 */

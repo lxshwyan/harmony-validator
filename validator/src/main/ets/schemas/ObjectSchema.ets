@@ -1,4 +1,7 @@
-import { AnySchema, ParsableSchema, ParseResult, ValidateError, ValidateResult } from '../core/types';
+import {
+  AnySchema, ParsableSchema, ParseResult, SchemaDescriptor, SchemaMetadata, ValidateError, ValidateResult
+} from '../core/types';
+import { SchemaDocs, schemaToDescriptor } from '../core/schema';
 import { ErrorCode, issue, validationError } from '../core/i18n';
 import { DefaultSchema, NullableSchema, parseSchema, parseSchemaAsync, TransformSchema } from './EffectSchemas';
 
@@ -20,13 +23,27 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
   private isOptional: boolean = false;
   private emptyMsg?: string;
   private fieldLabel: string = '';
+  private docs: SchemaDocs = new SchemaDocs();
 
   constructor(shape: SchemaShape) {
     this.shape = shape;
   }
 
+  meta(value: SchemaMetadata): ObjectSchema<T> { this.docs.meta(value); return this; }
+  describe(description: string): ObjectSchema<T> { this.docs.describe(description); return this; }
+  describeSchema(): SchemaDescriptor {
+    const result = this.docs.build('object', !this.isOptional, false);
+    const properties: Record<string, SchemaDescriptor> = {};
+    for (const key of Object.keys(this.shape)) {
+      properties[key] = schemaToDescriptor(this.shape[key]);
+    }
+    result.properties = properties;
+    return result;
+  }
+
   label(name: string): ObjectSchema<T> {
     this.fieldLabel = name;
+    this.docs.label(name);
     return this;
   }
 
@@ -55,6 +72,7 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
    * @param path 错误归属的字段路径（默认空串，表示对象级错误）。
    */
   refine(fn: (obj: T) => boolean, message: string, path?: string): ObjectSchema<T> {
+    this.docs.rule('refine', path, path ?? '', false, false);
     this.refines.push({
       fn: (obj: Object): boolean => fn(obj as T),
       message,

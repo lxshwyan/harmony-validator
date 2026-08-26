@@ -1,4 +1,7 @@
-import { AnySchema, ParsableSchema, ParseResult, ValidateError, ValidateResult } from '../core/types';
+import {
+  AnySchema, ParsableSchema, ParseResult, SchemaDescriptor, SchemaMetadata, ValidateError, ValidateResult
+} from '../core/types';
+import { SchemaDocs, schemaToDescriptor } from '../core/schema';
 import { RequiredState } from '../core/required';
 import { ErrorCode, issue, RuleIssue, validationError } from '../core/i18n';
 import { DefaultSchema, NullableSchema, parseSchema, parseSchemaAsync, TransformSchema } from './EffectSchemas';
@@ -18,13 +21,24 @@ export class ArraySchema<T extends Object = Object> implements ParsableSchema<Ar
   private rules: ArrayRule[] = [];
   private req: RequiredState = new RequiredState();
   private fieldLabel: string = '';
+  private docs: SchemaDocs = new SchemaDocs();
 
   constructor(element: AnySchema<T>) {
     this.element = element;
   }
 
+  meta(value: SchemaMetadata): ArraySchema<T> { this.docs.meta(value); return this; }
+  describe(description: string): ArraySchema<T> { this.docs.describe(description); return this; }
+  describeSchema(): SchemaDescriptor {
+    const result = this.docs.build('array', this.req.requiredForDescription(),
+      this.req.conditionallyRequiredForDescription());
+    result.items = schemaToDescriptor(this.element);
+    return result;
+  }
+
   label(name: string): ArraySchema<T> {
     this.fieldLabel = name;
+    this.docs.label(name);
     return this;
   }
 
@@ -61,6 +75,7 @@ export class ArraySchema<T extends Object = Object> implements ParsableSchema<Ar
 
   /** 最小元素个数。 */
   min(len: number, message?: string): ArraySchema<T> {
+    this.docs.rule('minItems', len);
     this.rules.push((value: Array<Object>): RuleIssue | null =>
       value.length >= len ? null : issue(ErrorCode.ARRAY_MIN, message, { 'min': `${len}` }));
     return this;
@@ -68,6 +83,7 @@ export class ArraySchema<T extends Object = Object> implements ParsableSchema<Ar
 
   /** 最大元素个数。 */
   max(len: number, message?: string): ArraySchema<T> {
+    this.docs.rule('maxItems', len);
     this.rules.push((value: Array<Object>): RuleIssue | null =>
       value.length <= len ? null : issue(ErrorCode.ARRAY_MAX, message, { 'max': `${len}` }));
     return this;
@@ -75,6 +91,7 @@ export class ArraySchema<T extends Object = Object> implements ParsableSchema<Ar
 
   /** 不能为空数组。 */
   nonEmpty(message?: string): ArraySchema<T> {
+    this.docs.rule('minItems', 1);
     this.rules.push((value: Array<Object>): RuleIssue | null =>
       value.length > 0 ? null : issue(ErrorCode.ARRAY_MIN, message, { 'min': '1' }));
     return this;

@@ -1,4 +1,5 @@
-import { AnySchema, ParsableSchema, ParseResult, ValidateResult } from '../core/types';
+import { AnySchema, ParsableSchema, ParseResult, SchemaDescriptor, SchemaMetadata, ValidateResult } from '../core/types';
+import { SchemaDocs, schemaToDescriptor } from '../core/schema';
 import { ErrorCode, issue, validationError } from '../core/i18n';
 import { DefaultSchema, NullableSchema, parseSchema, parseSchemaAsync, TransformSchema } from './EffectSchemas';
 
@@ -8,14 +9,33 @@ export class UnionSchema<T extends Object = Object> implements ParsableSchema<T>
   private schemas: Array<AnySchema<T>>;
   private customMessage?: string;
   private fieldLabel: string = '';
+  private docs: SchemaDocs = new SchemaDocs();
 
   constructor(schemas: Array<AnySchema<T>>, message?: string) {
     this.schemas = schemas;
     this.customMessage = message;
   }
 
+  meta(value: SchemaMetadata): UnionSchema<T> { this.docs.meta(value); return this; }
+  describe(description: string): UnionSchema<T> { this.docs.describe(description); return this; }
+  describeSchema(): SchemaDescriptor {
+    const result = this.docs.build('union');
+    let allRequired = this.schemas.length > 0;
+    let anyConditional = false;
+    for (const schema of this.schemas) {
+      const option = schemaToDescriptor(schema);
+      result.options.push(option);
+      allRequired = allRequired && option.required;
+      anyConditional = anyConditional || option.conditionallyRequired;
+    }
+    result.required = allRequired;
+    result.conditionallyRequired = !allRequired && anyConditional;
+    return result;
+  }
+
   label(name: string): UnionSchema<T> {
     this.fieldLabel = name;
+    this.docs.label(name);
     return this;
   }
 

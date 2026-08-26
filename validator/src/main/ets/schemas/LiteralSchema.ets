@@ -1,4 +1,5 @@
-import { ParsableSchema, ParseResult, ValidateResult } from '../core/types';
+import { ParsableSchema, ParseResult, SchemaDescriptor, SchemaMetadata, ValidateResult } from '../core/types';
+import { SchemaDocs } from '../core/schema';
 import { ErrorCode, issue, validationError } from '../core/i18n';
 import { DefaultSchema, NullableSchema, TransformSchema } from './EffectSchemas';
 import { RequiredState } from '../core/required';
@@ -10,14 +11,25 @@ export class LiteralSchema<T extends Object = Object> implements ParsableSchema<
   private customMessage?: string;
   private fieldLabel: string = '';
   private req: RequiredState = new RequiredState();
+  private docs: SchemaDocs = new SchemaDocs();
 
   constructor(expected: T, message?: string) {
     this.expected = expected;
     this.customMessage = message;
   }
 
+  meta(value: SchemaMetadata): LiteralSchema<T> { this.docs.meta(value); return this; }
+  describe(description: string): LiteralSchema<T> { this.docs.describe(description); return this; }
+  describeSchema(): SchemaDescriptor {
+    const result = this.docs.build('literal', this.req.requiredForDescription(),
+      this.req.conditionallyRequiredForDescription());
+    result.value = this.expected;
+    return result;
+  }
+
   label(name: string): LiteralSchema<T> {
     this.fieldLabel = name;
+    this.docs.label(name);
     return this;
   }
 

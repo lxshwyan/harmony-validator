@@ -18,6 +18,7 @@
 - 🧮 **多种类型** —— 字符串、数字、布尔、枚举、日期、数组、对象
 - 🌐 **国际化与错误码** —— 内置中英文、自定义语言包、字段 label 和稳定 `code`
 - 🧱 **组合与转换** —— `literal` / `union` / `nullable` / `default` / `transform`
+- 🗺️ **Schema 可描述** —— 元数据、稳定序列化与 JSON Schema Draft 2020-12 转换
 - 📝 **ArkUI 表单联动** —— `FormValidator` 控制器，与 `TextInput` 等组件实时联动
 - 💬 **中文错误提示** —— 默认中文，且每条都可自定义
 
@@ -183,6 +184,39 @@ age.parse('18'); // { success: true, value: 18, errors: [] }
 
 `validate()` 只回答是否有效；需要取得 default/transform 处理后的值时使用 `parse()` 或 `parseAsync()`。
 `default()` 只处理 `undefined`，不会吞掉显式 `null`；`nullable()` 只额外允许 `null`。
+
+### Schema 元数据、序列化与 JSON Schema
+
+```typescript
+import { v, schemaToDescriptor, serializeSchema, toJSONSchema } from '@hmkit/validator';
+
+const userSchema = v.object({
+  'name': v.string().required().min(2).label('姓名'),
+  'age': v.number().integer().min(0),
+}).meta({
+  id: 'https://example.com/user',
+  title: 'User',
+  description: '用户资料',
+  examples: [{ 'name': '张三', 'age': 18 } as Record<string, Object>],
+});
+
+const descriptor = schemaToDescriptor(userSchema); // 稳定、带类型的 SchemaDescriptor
+const saved = serializeSchema(userSchema, 2);        // 可缓存/审计的 JSON 字符串
+const jsonSchema = toJSONSchema(userSchema);         // Draft 2020-12 风格对象
+```
+
+每个内置 Schema 都支持 `.meta(metadata)`、`.describe(text)` 和 `.describeSchema()`。
+自定义函数、异步规则、对象 `refine`、运行时 `transform` 和业务插件无法被标准 JSON Schema 等价表达，
+默认会写入 `x-hmkit-unrepresentable`。可传 `throw` 让转换立即失败，或传 `ignore` 明确忽略扩展：
+
+```typescript
+toJSONSchema(schema, 'extension'); // 默认：保留扩展说明
+toJSONSchema(schema, 'throw');     // 遇到不可表达能力时抛错
+toJSONSchema(schema, 'ignore');    // 只输出可标准表达的部分
+```
+
+`serializeSchema()` 是结构序列化，不会序列化或恢复函数；因此它用于文档、缓存和审计，不承诺从 JSON
+重建带自定义 predicate/transform 的可执行 Schema。
 
 ### 中国规则按需引入与插件
 
@@ -482,7 +516,7 @@ interface ParseResult<T> {
 
 ## 版本
 
-当前开发版本 `0.7.0`。演进路线：
+当前版本 `0.8.0`。演进路线：
 
 - `0.1.0` MVP：链式 API + 中国本地化规则 + 对象校验
 - `0.2.0`：数组校验、异步校验、深层嵌套、ArkUI 表单联动 `FormValidator`
@@ -491,7 +525,8 @@ interface ParseResult<T> {
 - `0.5.0`：错误码、国际化、字段 label、literal/union、nullable/default/transform 与类型化 parse
 - `0.6.0`：ArkUI 防抖异步校验、竞态保护、触发策略、提交/touched/dirty 状态与字段依赖
 - `0.7.0`：中国规则按需导入、轻量入口、同步/异步规则插件和扩展机制
-- `0.8.0`（规划）：Schema 序列化、JSON Schema 转换与规则元数据
+- `0.8.0`：Schema 元数据、结构描述/序列化、JSON Schema 转换与不可表达能力策略
+- `0.9.0`（规划）：可逆 Codecs、Schema 恢复/迁移研究与更完整的 ArkUI 适配层
 
 ## 开发与验证
 
@@ -500,7 +535,7 @@ interface ParseResult<T> {
 ```
 
 该命令会安装依赖、运行 Hypium 本地测试、检查覆盖率门槛、构建 release HAR，并检查包内敏感发布信息和 release 元数据。
-当前基线：146/146 测试通过；行覆盖率 94.04%、函数 85.37%、分支 89.95%。新增用例覆盖按需入口、子路径消费、插件注册/覆盖/卸载、国际化、同步/异步异常和旧 API 兼容。发布门槛分别为 90% / 80% / 80%，报告生成在 `validator/.test/default/outputs/test/reports/`。
+当前基线：158/158 测试通过；行覆盖率 94.46%、函数 86.29%、分支 88.31%。新增用例覆盖元数据、全部 Schema 描述、嵌套/组合转换、三种不可表达策略、第三方 Schema 和稳定序列化；原有 0.1-0.7 API 回归继续通过。发布门槛分别为 90% / 80% / 80%，报告生成在 `validator/.test/default/outputs/test/reports/`。
 
 完整变更见 [CHANGELOG](./CHANGELOG.md)。
 

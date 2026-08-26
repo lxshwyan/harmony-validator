@@ -1,4 +1,5 @@
-import { ParsableSchema, ParseResult, ValidateError, ValidateResult } from '../core/types';
+import { ParsableSchema, ParseResult, SchemaDescriptor, SchemaMetadata, ValidateError, ValidateResult } from '../core/types';
+import { SchemaDocs } from '../core/schema';
 import { RequiredState } from '../core/required';
 import { ErrorCode, issue, validationError } from '../core/i18n';
 import { DefaultSchema, NullableSchema, TransformSchema } from './EffectSchemas';
@@ -10,9 +11,18 @@ export class BooleanSchema implements ParsableSchema<boolean> {
   private mustBe: boolean | null = null;
   private mustBeMsg?: string;
   private fieldLabel: string = '';
+  private docs: SchemaDocs = new SchemaDocs();
+
+  meta(value: SchemaMetadata): BooleanSchema { this.docs.meta(value); return this; }
+  describe(description: string): BooleanSchema { this.docs.describe(description); return this; }
+  describeSchema(): SchemaDescriptor {
+    return this.docs.build('boolean', this.req.requiredForDescription(),
+      this.req.conditionallyRequiredForDescription());
+  }
 
   label(name: string): BooleanSchema {
     this.fieldLabel = name;
+    this.docs.label(name);
     return this;
   }
 
@@ -51,6 +61,7 @@ export class BooleanSchema implements ParsableSchema<boolean> {
   isTrue(message?: string): BooleanSchema {
     this.mustBe = true;
     this.mustBeMsg = message;
+    this.docs.replaceRule('const', true);
     return this;
   }
 
@@ -58,6 +69,7 @@ export class BooleanSchema implements ParsableSchema<boolean> {
   isFalse(message?: string): BooleanSchema {
     this.mustBe = false;
     this.mustBeMsg = message;
+    this.docs.replaceRule('const', false);
     return this;
   }
 

@@ -34,7 +34,16 @@ export class RequiredState {
 
   addWhen(field: string, predicate: (other: Object | null | undefined) => boolean, message?: string): void {
     this.isOptional = false;
+    this.isRequired = false;
     this.whenConds.push({ field, predicate, message: message ?? this.requiredMsg });
+  }
+
+  requiredForDescription(): boolean {
+    return this.isRequired && !this.isOptional;
+  }
+
+  conditionallyRequiredForDescription(): boolean {
+    return !this.isOptional && !this.isRequired && this.whenConds.length > 0;
   }
 
   /** 空值时返回结构化必填错误；无需报错则返回 null。 */

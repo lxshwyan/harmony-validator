@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0
+
+- 所有内置 Schema 新增 `.meta()`、`.describe()` 和 `.describeSchema()`，可记录 id、标题、说明、示例、废弃状态、label、必填状态与规则结构
+- 新增 `schemaToDescriptor()` 与 `serializeSchema()`，支持对象、数组、枚举、字面量、union、nullable、default、transform 的稳定结构描述
+- 新增 `toJSONSchema()`，输出 JSON Schema Draft 2020-12 风格对象，支持嵌套 properties/required、items、anyOf、enum、const、default 和常用边界规则
+- 自定义同步/异步 predicate、对象 refine、运行时 transform、中国规则插件和第三方 Schema 不会被伪装为标准规则；默认写入 `x-hmkit-unrepresentable`
+- `toJSONSchema()` 支持 `extension`（默认）、`throw`、`ignore` 三种不可表达能力策略
+- 元数据在绑定时复制，避免调用方后续修改原对象导致 Schema 描述漂移
+- JSON Schema 会合并重复 min/max 约束、用 allOf 保留多个 pattern，并将无法标准表达的正则 flags 纳入策略处理
+- 修复 `.required().requiredWhen()` 未遵循“后调用条件必填覆盖前调用必填”的链式状态问题
+- 自动化测试增至 158 项；当前覆盖率 lines 94.46%、functions 86.29%、branches 88.31%
+
 ## 0.7.0
 
 - 新增 `@hmkit/validator/lite` 轻量入口，不自动加载全部中国规则

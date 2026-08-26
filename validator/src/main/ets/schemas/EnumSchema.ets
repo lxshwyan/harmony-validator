@@ -1,4 +1,5 @@
-import { ParsableSchema, ParseResult, ValidateError, ValidateResult } from '../core/types';
+import { ParsableSchema, ParseResult, SchemaDescriptor, SchemaMetadata, ValidateError, ValidateResult } from '../core/types';
+import { SchemaDocs } from '../core/schema';
 import { RequiredState } from '../core/required';
 import { ErrorCode, issue, validationError } from '../core/i18n';
 import { DefaultSchema, NullableSchema, TransformSchema } from './EffectSchemas';
@@ -13,14 +14,26 @@ export class EnumSchema<T extends Object = Object> implements ParsableSchema<T> 
   private req: RequiredState = new RequiredState();
   private customMessage?: string;
   private fieldLabel: string = '';
+  private docs: SchemaDocs = new SchemaDocs();
 
   constructor(values: Array<T>, message?: string) {
     this.values = values;
     this.customMessage = message;
+    for (const value of values) {
+      this.docs.rule('enum', value);
+    }
+  }
+
+  meta(value: SchemaMetadata): EnumSchema<T> { this.docs.meta(value); return this; }
+  describe(description: string): EnumSchema<T> { this.docs.describe(description); return this; }
+  describeSchema(): SchemaDescriptor {
+    return this.docs.build('enum', this.req.requiredForDescription(),
+      this.req.conditionallyRequiredForDescription());
   }
 
   label(name: string): EnumSchema<T> {
     this.fieldLabel = name;
+    this.docs.label(name);
     return this;
   }
 

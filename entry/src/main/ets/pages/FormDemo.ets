@@ -1,4 +1,4 @@
-import { v, FormTrigger, FormValidator } from '@hmkit/validator';
+import { v, FormTrigger, FormValidator, toJSONSchema } from '@hmkit/validator';
 import { liteV } from '@hmkit/validator/lite';
 import { mobileRule } from '@hmkit/validator/rules/mobile';
 import { router } from '@kit.ArkUI';
@@ -12,6 +12,12 @@ import { router } from '@kit.ArkUI';
 @Entry
 @Component
 struct FormDemo {
+  // 0.8.0：真实 App 消费公开 JSON Schema 导出，作为 HAR 入口编译门禁。
+  private schemaJson: string = JSON.stringify(toJSONSchema(v.object({
+    'username': v.string().required().min(3),
+    'phone': v.string().required().phone(),
+    'age': v.number().required().integer().min(18),
+  }).meta({ title: 'RegisterForm' })));
   // 字段名 -> 校验器；FormValidator 据此实时/整体校验
   private validator: FormValidator = new FormValidator({
     'username': v.string().required('请输入用户名').min(3, '用户名至少3位'),
@@ -154,6 +160,9 @@ struct FormDemo {
           .fontColor(this.submitOk ? '#1AAD19' : '#E64340')
           .margin({ top: 14 })
       }
+
+      Text(this.schemaJson.length > 0 ? 'Schema 描述已就绪' : 'Schema 描述生成失败')
+        .fontSize(12).fontColor('#999').margin({ top: 10 })
     }
     .width('100%').height('100%')
     .padding({ left: 16, right: 16 })

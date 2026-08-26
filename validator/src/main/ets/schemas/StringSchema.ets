@@ -1,4 +1,5 @@
-import { ParsableSchema, ParseResult, ValidateError, ValidateResult } from '../core/types';
+import { ParsableSchema, ParseResult, SchemaDescriptor, SchemaMetadata, ValidateError, ValidateResult } from '../core/types';
+import { SchemaDocs } from '../core/schema';
 import { RequiredState } from '../core/required';
 import { ErrorCode, issue, RuleIssue, validationError } from '../core/i18n';
 import { DefaultSchema, NullableSchema, TransformSchema } from './EffectSchemas';
@@ -18,10 +19,27 @@ export class StringSchema implements ParsableSchema<string> {
   private asyncRules: StringAsyncRule[] = [];
   private req: RequiredState = new RequiredState();
   private fieldLabel: string = '';
+  private docs: SchemaDocs = new SchemaDocs();
+
+  meta(value: SchemaMetadata): StringSchema {
+    this.docs.meta(value);
+    return this;
+  }
+
+  describe(description: string): StringSchema {
+    this.docs.describe(description);
+    return this;
+  }
+
+  describeSchema(): SchemaDescriptor {
+    return this.docs.build('string', this.req.requiredForDescription(),
+      this.req.conditionallyRequiredForDescription());
+  }
 
   /** 设置显示字段名；仅影响默认/自定义错误文案，不改变错误 path。 */
   label(name: string): StringSchema {
     this.fieldLabel = name;
+    this.docs.label(name);
     return this;
   }
 
@@ -62,6 +80,7 @@ export class StringSchema implements ParsableSchema<string> {
 
   /** 最小长度。 */
   min(len: number, message?: string): StringSchema {
+    this.docs.rule('minLength', len);
     this.rules.push((value: string): RuleIssue | null =>
       value.length >= len ? null : issue(ErrorCode.STRING_MIN, message, { 'min': `${len}` }));
     return this;
@@ -69,6 +88,7 @@ export class StringSchema implements ParsableSchema<string> {
 
   /** 最大长度。 */
   max(len: number, message?: string): StringSchema {
+    this.docs.rule('maxLength', len);
     this.rules.push((value: string): RuleIssue | null =>
       value.length <= len ? null : issue(ErrorCode.STRING_MAX, message, { 'max': `${len}` }));
     return this;
@@ -76,6 +96,7 @@ export class StringSchema implements ParsableSchema<string> {
 
   /** 自定义正则。 */
   pattern(re: RegExp, message?: string): StringSchema {
+    this.docs.rule('pattern', re.source, re.flags);
     this.rules.push((value: string): RuleIssue | null => {
       // 带 g/y 标记的 RegExp.test 会推进 lastIndex；每次校验前后复位，保证结果可重复。
       re.lastIndex = 0;
@@ -88,6 +109,7 @@ export class StringSchema implements ParsableSchema<string> {
 
   /** 自定义规则。返回 true 通过。 */
   custom(fn: (value: string) => boolean, message: string): StringSchema {
+    this.docs.rule('custom', undefined, 'synchronous predicate', false, false);
     this.rules.push((value: string): RuleIssue | null => {
       try {
         return fn(value) ? null : issue(ErrorCode.CUSTOM, message);
@@ -104,6 +126,7 @@ export class StringSchema implements ParsableSchema<string> {
    * 仅在调用 validateAsync 时生效；同步 validate 会忽略异步规则。
    */
   customAsync(fn: (value: string) => Promise<boolean>, message: string): StringSchema {
+    this.docs.rule('custom', undefined, 'asynchronous predicate', true, false);
     this.asyncRules.push(async (value: string): Promise<RuleIssue | null> => {
       try {
         return (await fn(value)) ? null : issue(ErrorCode.CUSTOM, message);
@@ -117,6 +140,15 @@ export class StringSchema implements ParsableSchema<string> {
   /** 应用一个可按需导入的字符串规则插件。 */
   use(plugin: StringRulePlugin, message?: string): StringSchema {
     prepareStringRule(plugin);
+    if (plugin.name === 'email') {
+      this.docs.rule('format', 'email');
+    } else if (plugin.name === 'url') {
+      this.docs.rule('format', 'uri');
+    } else if (plugin.name === 'ipv4') {
+      this.docs.rule('format', 'ipv4');
+    } else {
+      this.docs.rule('plugin', plugin.code, plugin.name, plugin.hasAsync, false);
+    }
     this.rules.push((value: string): RuleIssue | null => applyStringRule(plugin, value, message));
     if (plugin.hasAsync === true && plugin.validateAsync !== undefined) {
       this.asyncRules.push((value: string): Promise<RuleIssue | null> =>
@@ -129,6 +161,7 @@ export class StringSchema implements ParsableSchema<string> {
   useRegistered(name: string, message?: string): StringSchema {
     const plugin = getStringRule(name);
     if (plugin === undefined) {
+      this.docs.rule('missing-plugin', name, name, false, false);
       this.rules.push((_value: string): RuleIssue | null =>
         issue(ErrorCode.PLUGIN_MISSING, message, { 'name': name }));
       return this;

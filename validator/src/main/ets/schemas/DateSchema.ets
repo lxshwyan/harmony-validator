@@ -1,4 +1,5 @@
-import { ParsableSchema, ParseResult, ValidateError, ValidateResult } from '../core/types';
+import { ParsableSchema, ParseResult, SchemaDescriptor, SchemaMetadata, ValidateError, ValidateResult } from '../core/types';
+import { SchemaDocs } from '../core/schema';
 import { RequiredState } from '../core/required';
 import { ErrorCode, issue, RuleIssue, validationError } from '../core/i18n';
 import { DefaultSchema, NullableSchema, TransformSchema } from './EffectSchemas';
@@ -76,9 +77,18 @@ export class DateSchema implements ParsableSchema<DateLike> {
   private strictMode: boolean = false;
   private strictMessage?: string;
   private fieldLabel: string = '';
+  private docs: SchemaDocs = new SchemaDocs();
+
+  meta(value: SchemaMetadata): DateSchema { this.docs.meta(value); return this; }
+  describe(description: string): DateSchema { this.docs.describe(description); return this; }
+  describeSchema(): SchemaDescriptor {
+    return this.docs.build('date', this.req.requiredForDescription(),
+      this.req.conditionallyRequiredForDescription());
+  }
 
   label(name: string): DateSchema {
     this.fieldLabel = name;
+    this.docs.label(name);
     return this;
   }
 
@@ -120,12 +130,16 @@ export class DateSchema implements ParsableSchema<DateLike> {
   strict(message?: string): DateSchema {
     this.strictMode = true;
     this.strictMessage = message;
+    this.docs.rule('strict-date', undefined, 'ISO 8601 date or timezone date-time', false, false);
     return this;
   }
 
   /** 不能早于 `min`。若边界无法解析（NaN）则跳过该规则，避免静默全量拒绝。 */
   min(min: DateLike, message?: string): DateSchema {
     const bound = toMillis(min);
+    if (!Number.isNaN(bound)) {
+      this.docs.rule('minimum-date', bound, new Date(bound).toISOString(), false, false);
+    }
     this.rules.push((ms: number): RuleIssue | null =>
       Number.isNaN(bound) || ms >= bound ? null : issue(ErrorCode.DATE_MIN, message));
     return this;
@@ -134,6 +148,9 @@ export class DateSchema implements ParsableSchema<DateLike> {
   /** 不能晚于 `max`。若边界无法解析（NaN）则跳过该规则。 */
   max(max: DateLike, message?: string): DateSchema {
     const bound = toMillis(max);
+    if (!Number.isNaN(bound)) {
+      this.docs.rule('maximum-date', bound, new Date(bound).toISOString(), false, false);
+    }
     this.rules.push((ms: number): RuleIssue | null =>
       Number.isNaN(bound) || ms <= bound ? null : issue(ErrorCode.DATE_MAX, message));
     return this;

@@ -14,7 +14,11 @@ export {
   FormValidator, FormTrigger, FormFieldOptions, FormValidatorOptions,
   FormFieldState, FormState, FormSubmitHandler
 } from './src/main/ets/form/FormValidator';
-export { AnySchema, ParsableSchema, ParseResult, ValidateError, ValidateResult } from './src/main/ets/core/types';
+export {
+  AnySchema, ParsableSchema, ParseResult, SchemaDescriptor, SchemaMetadata,
+  SchemaRuleDescriptor, ValidateError, ValidateResult
+} from './src/main/ets/core/types';
+export { schemaToDescriptor, serializeSchema, toJSONSchema } from './src/main/ets/core/schema';
 export { ErrorCode, MessageCatalog, MessageParams, ValidatorI18n } from './src/main/ets/core/i18n';
 export {
   StringRulePlugin, BasicStringRulePlugin, registerStringRule, unregisterStringRule, getStringRule

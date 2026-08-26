@@ -18,6 +18,7 @@ Write validations like you do with `zod` / `yup`, but with high-frequency Chines
 - 🧮 **Many types** — string, number, boolean, enum, date, array, object
 - 🌐 **i18n and error codes** — built-in Chinese/English, custom catalogs, field labels, stable `code`
 - 🧱 **Composition and transforms** — `literal` / `union` / `nullable` / `default` / `transform`
+- 🗺️ **Describable schemas** — metadata, stable serialization, and JSON Schema Draft 2020-12 conversion
 - 📝 **ArkUI form binding** — `FormValidator` controller that wires up to `TextInput` and other components in real time
 - 💬 **Chinese error messages** by default, every message overridable
 
@@ -183,6 +184,39 @@ age.parse('18'); // { success: true, value: 18, errors: [] }
 
 `validate()` only answers whether a value is valid. Use `parse()` or `parseAsync()` to retrieve defaulted or
 transformed output. `default()` handles only `undefined`, while `nullable()` additionally accepts explicit `null`.
+
+### Schema metadata, serialization, and JSON Schema
+
+```typescript
+import { v, schemaToDescriptor, serializeSchema, toJSONSchema } from '@hmkit/validator';
+
+const userSchema = v.object({
+  'name': v.string().required().min(2).label('Name'),
+  'age': v.number().integer().min(0),
+}).meta({
+  id: 'https://example.com/user',
+  title: 'User',
+  description: 'User profile',
+  examples: [{ 'name': 'Alice', 'age': 18 } as Record<string, Object>],
+});
+
+const descriptor = schemaToDescriptor(userSchema);
+const saved = serializeSchema(userSchema, 2);
+const jsonSchema = toJSONSchema(userSchema);
+```
+
+Every built-in schema supports `.meta(metadata)`, `.describe(text)`, and `.describeSchema()`.
+Custom/async predicates, object refinements, runtime transforms, business plugins, and third-party schemas cannot be
+represented equivalently by standard JSON Schema. The default mode records them under `x-hmkit-unrepresentable`:
+
+```typescript
+toJSONSchema(schema, 'extension'); // default: keep explicit extension notes
+toJSONSchema(schema, 'throw');     // fail on anything not representable
+toJSONSchema(schema, 'ignore');    // emit only the standard-compatible subset
+```
+
+`serializeSchema()` serializes structure, not executable functions. It is intended for documentation, caching, and
+auditing; it does not promise to rebuild custom predicates or transforms from JSON.
 
 ### On-demand rules and plugins
 
@@ -462,7 +496,7 @@ interface ParseResult<T> {
 
 ## Version
 
-Current development version: `0.7.0`. Roadmap:
+Current version: `0.8.0`. Roadmap:
 
 - `0.1.0` MVP: chainable API + China-localized rules + object validation
 - `0.2.0`: array validation, async validation, deep nesting, ArkUI form binding `FormValidator`
@@ -471,7 +505,8 @@ Current development version: `0.7.0`. Roadmap:
 - `0.5.0`: error codes, localization, labels, literal/union, nullable/default/transform, and typed parsing
 - `0.6.0`: ArkUI debounce, async race protection, validation triggers, submitting/touched/dirty state, and field dependencies
 - `0.7.0`: independently importable China rules, a lite entry, and sync/async rule plugins
-- `0.8.0` (planned): schema serialization, JSON Schema conversion, and rule metadata
+- `0.8.0`: schema metadata, structural serialization, JSON Schema conversion, and explicit unsupported-rule policies
+- `0.9.0` (planned): reversible codecs, schema restoration/migration research, and a fuller ArkUI adapter layer
 
 ## Development and verification
 
@@ -480,7 +515,7 @@ Current development version: `0.7.0`. Roadmap:
 ```
 
 This installs dependencies, runs local Hypium tests, enforces coverage thresholds, builds a release HAR, and checks the package for publishing credentials and release metadata.
-Current baseline: 146/146 tests passing; 94.04% line, 85.37% function, and 89.95% branch coverage. New tests cover on-demand entries, subpath consumption, plugin registration/replacement/removal, localization, sync/async failures, and legacy API compatibility. Release thresholds are 90% / 80% / 80%; reports are generated under `validator/.test/default/outputs/test/reports/`.
+Current baseline: 158/158 tests passing; 94.46% line, 86.29% function, and 88.31% branch coverage. New tests cover metadata, every schema descriptor family, nested/composed conversion, all three unsupported-rule policies, third-party schemas, and deterministic serialization; the 0.1-0.7 API regressions remain green. Release thresholds are 90% / 80% / 80%; reports are generated under `validator/.test/default/outputs/test/reports/`.
 
 See the full [CHANGELOG](./CHANGELOG.md).
 

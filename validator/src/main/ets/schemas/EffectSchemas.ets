@@ -1,4 +1,7 @@
-import { AnySchema, ParsableSchema, ParseResult, ValidateError, ValidateResult } from '../core/types';
+import {
+  AnySchema, ParsableSchema, ParseResult, SchemaDescriptor, SchemaMetadata, ValidateError, ValidateResult
+} from '../core/types';
+import { SchemaDocs, schemaToDescriptor } from '../core/schema';
 import { ErrorCode, issue, ValidatorI18n, validationError } from '../core/i18n';
 
 /** 对任意 Schema 执行解析；第三方旧 Schema 没有 parse 时回退为“校验后返回原值”。 */
@@ -43,13 +46,24 @@ export class NullableSchema<T> implements ParsableSchema<T | null> {
   readonly __schemaType: T | null = null;
   private inner: AnySchema<T>;
   private fieldLabel: string = '';
+  private docs: SchemaDocs = new SchemaDocs();
 
   constructor(inner: AnySchema<T>) {
     this.inner = inner;
   }
 
+  meta(value: SchemaMetadata): NullableSchema<T> { this.docs.meta(value); return this; }
+  describe(description: string): NullableSchema<T> { this.docs.describe(description); return this; }
+  describeSchema(): SchemaDescriptor {
+    const inner = schemaToDescriptor(this.inner);
+    const result = this.docs.build('nullable', inner.required, inner.conditionallyRequired);
+    result.inner = inner;
+    return result;
+  }
+
   label(name: string): NullableSchema<T> {
     this.fieldLabel = name;
+    this.docs.label(name);
     return this;
   }
 
@@ -106,14 +120,25 @@ export class DefaultSchema<T> implements ParsableSchema<T> {
   private inner: AnySchema<T>;
   private fallback: T;
   private fieldLabel: string = '';
+  private docs: SchemaDocs = new SchemaDocs();
 
   constructor(inner: AnySchema<T>, fallback: T) {
     this.inner = inner;
     this.fallback = fallback;
   }
 
+  meta(value: SchemaMetadata): DefaultSchema<T> { this.docs.meta(value); return this; }
+  describe(description: string): DefaultSchema<T> { this.docs.describe(description); return this; }
+  describeSchema(): SchemaDescriptor {
+    const result = this.docs.build('default', false, false);
+    result.inner = schemaToDescriptor(this.inner);
+    result.defaultValue = this.fallback as Object;
+    return result;
+  }
+
   label(name: string): DefaultSchema<T> {
     this.fieldLabel = name;
+    this.docs.label(name);
     return this;
   }
 
@@ -172,6 +197,7 @@ export class TransformSchema<T, U> implements ParsableSchema<U> {
   private fn: (value: T) => U;
   private customMessage?: string;
   private fieldLabel: string = '';
+  private docs: SchemaDocs = new SchemaDocs();
 
   constructor(inner: AnySchema<T>, fn: (value: T) => U, message?: string) {
     this.inner = inner;
@@ -179,8 +205,19 @@ export class TransformSchema<T, U> implements ParsableSchema<U> {
     this.customMessage = message;
   }
 
+  meta(value: SchemaMetadata): TransformSchema<T, U> { this.docs.meta(value); return this; }
+  describe(description: string): TransformSchema<T, U> { this.docs.describe(description); return this; }
+  describeSchema(): SchemaDescriptor {
+    const inner = schemaToDescriptor(this.inner);
+    const result = this.docs.build('transform', inner.required, inner.conditionallyRequired);
+    result.inner = inner;
+    result.unrepresentable.push('runtime-transform');
+    return result;
+  }
+
   label(name: string): TransformSchema<T, U> {
     this.fieldLabel = name;
+    this.docs.label(name);
     return this;
   }
 

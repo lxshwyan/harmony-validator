@@ -1,4 +1,5 @@
-import { ParsableSchema, ParseResult, ValidateError, ValidateResult } from '../core/types';
+import { ParsableSchema, ParseResult, SchemaDescriptor, SchemaMetadata, ValidateError, ValidateResult } from '../core/types';
+import { SchemaDocs } from '../core/schema';
 import { RequiredState } from '../core/required';
 import { ErrorCode, issue, RuleIssue, validationError } from '../core/i18n';
 import { DefaultSchema, NullableSchema, TransformSchema } from './EffectSchemas';
@@ -13,9 +14,18 @@ export class NumberSchema implements ParsableSchema<number> {
   private asyncRules: NumberAsyncRule[] = [];
   private req: RequiredState = new RequiredState();
   private fieldLabel: string = '';
+  private docs: SchemaDocs = new SchemaDocs();
+
+  meta(value: SchemaMetadata): NumberSchema { this.docs.meta(value); return this; }
+  describe(description: string): NumberSchema { this.docs.describe(description); return this; }
+  describeSchema(): SchemaDescriptor {
+    return this.docs.build('number', this.req.requiredForDescription(),
+      this.req.conditionallyRequiredForDescription());
+  }
 
   label(name: string): NumberSchema {
     this.fieldLabel = name;
+    this.docs.label(name);
     return this;
   }
 
@@ -51,6 +61,7 @@ export class NumberSchema implements ParsableSchema<number> {
 
   /** 最小值（含）。 */
   min(value: number, message?: string): NumberSchema {
+    this.docs.rule('minimum', value);
     this.rules.push((v: number): RuleIssue | null =>
       v >= value ? null : issue(ErrorCode.NUMBER_MIN, message, { 'min': `${value}` }));
     return this;
@@ -58,6 +69,7 @@ export class NumberSchema implements ParsableSchema<number> {
 
   /** 最大值（含）。 */
   max(value: number, message?: string): NumberSchema {
+    this.docs.rule('maximum', value);
     this.rules.push((v: number): RuleIssue | null =>
       v <= value ? null : issue(ErrorCode.NUMBER_MAX, message, { 'max': `${value}` }));
     return this;
@@ -65,6 +77,7 @@ export class NumberSchema implements ParsableSchema<number> {
 
   /** 必须为整数。 */
   integer(message?: string): NumberSchema {
+    this.docs.rule('integer');
     this.rules.push((v: number): RuleIssue | null =>
       Number.isInteger(v) ? null : issue(ErrorCode.INTEGER, message));
     return this;
@@ -72,12 +85,14 @@ export class NumberSchema implements ParsableSchema<number> {
 
   /** 必须为正数。 */
   positive(message?: string): NumberSchema {
+    this.docs.rule('exclusiveMinimum', 0);
     this.rules.push((v: number): RuleIssue | null =>
       v > 0 ? null : issue(ErrorCode.POSITIVE, message));
     return this;
   }
 
   custom(fn: (value: number) => boolean, message: string): NumberSchema {
+    this.docs.rule('custom', undefined, 'synchronous predicate', false, false);
     this.rules.push((v: number): RuleIssue | null => {
       try {
         return fn(v) ? null : issue(ErrorCode.CUSTOM, message);
@@ -90,6 +105,7 @@ export class NumberSchema implements ParsableSchema<number> {
 
   /** 自定义异步规则。返回 Promise<true> 通过。仅 validateAsync 时生效。 */
   customAsync(fn: (value: number) => Promise<boolean>, message: string): NumberSchema {
+    this.docs.rule('custom', undefined, 'asynchronous predicate', true, false);
     this.asyncRules.push(async (v: number): Promise<RuleIssue | null> => {
       try {
         return (await fn(v)) ? null : issue(ErrorCode.CUSTOM, message);
