@@ -1,4 +1,4 @@
-import { AnySchema, SchemaDescriptor, SchemaMetadata, SchemaRuleDescriptor } from './types';
+import { AnySchema, SchemaDescriptor, SchemaDocument, SchemaMetadata, SchemaRuleDescriptor } from './types';
 
 /** 每个内置 Schema 使用的轻量文档状态，不参与实际校验。 */
 export class SchemaDocs {
@@ -41,6 +41,17 @@ export class SchemaDocs {
     }
     next.push(new SchemaRuleDescriptor(name, value, detail, asyncRule, standard));
     this.rules = next;
+  }
+
+  copy(): SchemaDocs {
+    const result = new SchemaDocs();
+    const metadata = this.metadataCopy();
+    if (metadata !== undefined) result.meta(metadata);
+    if (this.labelValue !== '') result.label(this.labelValue);
+    for (const rule of this.rules) {
+      result.rule(rule.name, rule.value, rule.detail, rule.async, rule.standard);
+    }
+    return result;
   }
 
   private metadataCopy(): SchemaMetadata | undefined {
@@ -186,7 +197,109 @@ function applyPatterns(target: Record<string, Object>, patterns: Array<string>):
   }
 }
 
-function descriptorToJSON(source: SchemaDescriptor, mode: string): Record<string, Object> {
+class JSONConversionContext {
+  mode: string;
+  root: SchemaDescriptor;
+  active: Array<SchemaDescriptor> = [];
+  definitionIds: Array<string> = [];
+  definitionFingerprints: Array<string> = [];
+  definitions: Record<string, Object> = {};
+
+  constructor(mode: string, root: SchemaDescriptor) {
+    this.mode = mode;
+    this.root = root;
+  }
+
+  definitionKey(id: string, source: SchemaDescriptor): string {
+    const existing = this.definitionIds.indexOf(id);
+    let fingerprint = '';
+    try {
+      fingerprint = JSON.stringify(source);
+    } catch (_error) {
+      // 循环 descriptor 无法直接 stringify；循环本身由 active/root 检测处理。
+    }
+    if (existing !== -1) {
+      const previous = this.definitionFingerprints[existing];
+      if (previous !== '' && fingerprint !== '' && previous !== fingerprint) {
+        throw new Error(`Duplicate schema metadata.id has conflicting definitions: ${id}`);
+      }
+      return `schema${existing + 1}`;
+    }
+    this.definitionIds.push(id);
+    this.definitionFingerprints.push(fingerprint);
+    return `schema${this.definitionIds.length}`;
+  }
+}
+
+function referenceJSON(reference: string): Record<string, Object> {
+  const result: Record<string, Object> = {};
+  result['$ref'] = reference;
+  return result;
+}
+
+function discriminatorConstraint(field: string, key: string): Record<string, Object> {
+  const tagSchema: Record<string, Object> = {};
+  const numeric = Number(key);
+  if (Number.isFinite(numeric) && `${numeric}` === key) {
+    const values: Array<Object> = [];
+    const stringValue: Record<string, Object> = {};
+    stringValue['const'] = key;
+    values.push(stringValue);
+    const numberValue: Record<string, Object> = {};
+    numberValue['const'] = numeric;
+    values.push(numberValue);
+    tagSchema['anyOf'] = values;
+  } else {
+    tagSchema['const'] = key;
+  }
+  const properties: Record<string, Object> = {};
+  properties[field] = tagSchema;
+  const constraint: Record<string, Object> = {};
+  constraint['type'] = 'object';
+  constraint['properties'] = properties;
+  constraint['required'] = [field];
+  return constraint;
+}
+
+function descriptorToJSON(source: SchemaDescriptor, context: JSONConversionContext,
+  rootCall?: boolean): Record<string, Object> {
+  const isRoot = rootCall ?? false;
+  if (!isRoot && source === context.root) {
+    if (source.metadata?.id === undefined) {
+      throw new Error('Circular schema descriptor requires metadata.id');
+    }
+    return referenceJSON('#');
+  }
+  if (context.active.indexOf(source) !== -1) {
+    if (source.metadata?.id === undefined) {
+      throw new Error('Circular schema descriptor requires metadata.id');
+    }
+    const key = context.definitionKey(source.metadata.id, source);
+    return referenceJSON(`#/$defs/${key}`);
+  }
+  if (!isRoot && source.metadata?.id !== undefined) {
+    const existing = context.definitionIds.indexOf(source.metadata.id);
+    if (existing !== -1) {
+      const existingKey = context.definitionKey(source.metadata.id, source);
+      return referenceJSON(`#/$defs/${existingKey}`);
+    }
+    const key = context.definitionKey(source.metadata.id, source);
+    const placeholder: Record<string, Object> = {};
+    context.definitions[key] = placeholder;
+    context.active.push(source);
+    const definition = descriptorToJSONBody(source, context);
+    context.active.pop();
+    context.definitions[key] = definition;
+    return referenceJSON(`#/$defs/${key}`);
+  }
+  context.active.push(source);
+  const result = descriptorToJSONBody(source, context);
+  context.active.pop();
+  return result;
+}
+
+function descriptorToJSONBody(source: SchemaDescriptor, context: JSONConversionContext): Record<string, Object> {
+  const mode = context.mode;
   let target: Record<string, Object> = {};
   const extensions: Array<string> = source.unrepresentable.slice();
   const patterns: Array<string> = [];
@@ -227,8 +340,22 @@ function descriptorToJSON(source: SchemaDescriptor, mode: string): Record<string
   } else if (source.kind === 'array') {
     target['type'] = 'array';
     if (source.items !== undefined) {
-      target['items'] = descriptorToJSON(source.items, mode);
+      target['items'] = descriptorToJSON(source.items, context);
     }
+  } else if (source.kind === 'record') {
+    target['type'] = 'object';
+    if (source.items !== undefined) {
+      target['additionalProperties'] = descriptorToJSON(source.items, context);
+    }
+  } else if (source.kind === 'tuple') {
+    target['type'] = 'array';
+    const prefixItems: Array<Object> = [];
+    for (const item of source.tupleItems) {
+      prefixItems.push(descriptorToJSON(item, context));
+    }
+    target['prefixItems'] = prefixItems;
+    target['minItems'] = source.tupleItems.length;
+    target['maxItems'] = source.tupleItems.length;
   } else if (source.kind === 'object') {
     target['type'] = 'object';
     const properties: Record<string, Object> = {};
@@ -236,7 +363,7 @@ function descriptorToJSON(source: SchemaDescriptor, mode: string): Record<string
     if (source.properties !== undefined) {
       for (const key of Object.keys(source.properties)) {
         const child = source.properties[key];
-        properties[key] = descriptorToJSON(child, mode);
+        properties[key] = descriptorToJSON(child, context);
         if (child.required) {
           required.push(key);
         }
@@ -249,29 +376,61 @@ function descriptorToJSON(source: SchemaDescriptor, mode: string): Record<string
     if (required.length > 0) {
       target['required'] = required;
     }
+    if (source.unknownKeys === 'strict') {
+      target['additionalProperties'] = false;
+    } else if (source.unknownKeys === 'strip') {
+      extensions.push('strip-unknown-keys');
+    }
   } else if (source.kind === 'union') {
     const anyOf: Array<Object> = [];
     for (const option of source.options) {
-      anyOf.push(descriptorToJSON(option, mode));
+      anyOf.push(descriptorToJSON(option, context));
     }
     target['anyOf'] = anyOf;
+  } else if (source.kind === 'discriminated-union') {
+    const oneOf: Array<Object> = [];
+    if (source.variants !== undefined) {
+      for (const key of Object.keys(source.variants)) {
+        const variant = descriptorToJSON(source.variants[key], context);
+        if (source.discriminator === undefined) {
+          oneOf.push(variant);
+        } else {
+          const branch: Record<string, Object> = {};
+          const allOf: Array<Object> = [];
+          allOf.push(variant);
+          allOf.push(discriminatorConstraint(source.discriminator, key));
+          branch['allOf'] = allOf;
+          oneOf.push(branch);
+        }
+      }
+    }
+    target['oneOf'] = oneOf;
+    if (source.discriminator !== undefined) {
+      const discriminator: Record<string, Object> = {};
+      discriminator['propertyName'] = source.discriminator;
+      target['discriminator'] = discriminator;
+    }
   } else if (source.kind === 'nullable') {
     if (source.inner !== undefined) {
       const anyOf: Array<Object> = [];
-      anyOf.push(descriptorToJSON(source.inner, mode));
+      anyOf.push(descriptorToJSON(source.inner, context));
       anyOf.push(new NullJsonSchema());
       target['anyOf'] = anyOf;
     }
   } else if (source.kind === 'default') {
     if (source.inner !== undefined) {
-      target = descriptorToJSON(source.inner, mode);
+      target = descriptorToJSON(source.inner, context);
     }
     if (source.defaultValue !== undefined) {
       target['default'] = source.defaultValue;
     }
   } else if (source.kind === 'transform') {
     if (source.inner !== undefined) {
-      target = descriptorToJSON(source.inner, mode);
+      target = descriptorToJSON(source.inner, context);
+    }
+  } else if (source.kind === 'preprocess') {
+    if (source.inner !== undefined) {
+      target = descriptorToJSON(source.inner, context);
     }
   } else {
     extensions.push(source.kind);
@@ -297,12 +456,47 @@ export function toJSONSchema<T>(schema: AnySchema<T>, mode?: string): Record<str
   if (selectedMode !== 'extension' && selectedMode !== 'throw' && selectedMode !== 'ignore') {
     throw new Error(`Unsupported JSON Schema mode: ${selectedMode}`);
   }
-  const target = descriptorToJSON(schemaToDescriptor(schema), selectedMode);
+  const descriptor = schemaToDescriptor(schema);
+  const context = new JSONConversionContext(selectedMode, descriptor);
+  const target = descriptorToJSON(descriptor, context, true);
   target['$schema'] = 'https://json-schema.org/draft/2020-12/schema';
+  if (Object.keys(context.definitions).length > 0) target['$defs'] = context.definitions;
   return target;
+}
+
+function assertSerializableDescriptor(source: SchemaDescriptor, active: Array<SchemaDescriptor>): void {
+  if (active.indexOf(source) !== -1) {
+    throw new Error('Circular schema descriptor cannot be serialized; use toJSONSchema() with metadata.id references');
+  }
+  active.push(source);
+  if (source.properties !== undefined) {
+    for (const key of Object.keys(source.properties)) assertSerializableDescriptor(source.properties[key], active);
+  }
+  if (source.items !== undefined) assertSerializableDescriptor(source.items, active);
+  for (const item of source.tupleItems) assertSerializableDescriptor(item, active);
+  for (const option of source.options) assertSerializableDescriptor(option, active);
+  if (source.variants !== undefined) {
+    for (const key of Object.keys(source.variants)) assertSerializableDescriptor(source.variants[key], active);
+  }
+  if (source.inner !== undefined) assertSerializableDescriptor(source.inner, active);
+  active.pop();
 }
 
 /** 稳定序列化结构描述；用于缓存、审计或跨进程传递，不承诺恢复运行时函数。 */
 export function serializeSchema<T>(schema: AnySchema<T>, space?: number): string {
-  return JSON.stringify(schemaToDescriptor(schema), null, space ?? 0);
+  const descriptor = schemaToDescriptor(schema);
+  assertSerializableDescriptor(descriptor, []);
+  return JSON.stringify(descriptor, null, space ?? 0);
+}
+
+/** 生成带格式名和版本号的 1.0 Schema 文档。 */
+export function schemaToDocument<T>(schema: AnySchema<T>): SchemaDocument {
+  return new SchemaDocument(schemaToDescriptor(schema));
+}
+
+/** 推荐的版本化序列化入口；用于未来格式迁移。 */
+export function serializeSchemaDocument<T>(schema: AnySchema<T>, space?: number): string {
+  const document = schemaToDocument(schema);
+  assertSerializableDescriptor(document.schema, []);
+  return JSON.stringify(document, null, space ?? 0);
 }

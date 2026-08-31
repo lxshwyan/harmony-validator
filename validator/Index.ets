@@ -9,16 +9,22 @@ export { EnumSchema } from './src/main/ets/schemas/EnumSchema';
 export { DateSchema, DateLike } from './src/main/ets/schemas/DateSchema';
 export { LiteralSchema } from './src/main/ets/schemas/LiteralSchema';
 export { UnionSchema } from './src/main/ets/schemas/UnionSchema';
+export { RecordSchema } from './src/main/ets/schemas/RecordSchema';
+export { TupleSchema } from './src/main/ets/schemas/TupleSchema';
+export { DiscriminatedUnionSchema } from './src/main/ets/schemas/DiscriminatedUnionSchema';
+export { PreprocessFunction, PreprocessSchema } from './src/main/ets/schemas/PreprocessSchema';
 export { NullableSchema, DefaultSchema, TransformSchema } from './src/main/ets/schemas/EffectSchemas';
 export {
   FormValidator, FormTrigger, FormFieldOptions, FormValidatorOptions,
   FormFieldState, FormState, FormSubmitHandler
 } from './src/main/ets/form/FormValidator';
 export {
-  AnySchema, ParsableSchema, ParseResult, SchemaDescriptor, SchemaMetadata,
+  AnySchema, ParsableSchema, ParseResult, SchemaDescriptor, SchemaDocument, SchemaMetadata,
   SchemaRuleDescriptor, ValidateError, ValidateResult
 } from './src/main/ets/core/types';
-export { schemaToDescriptor, serializeSchema, toJSONSchema } from './src/main/ets/core/schema';
+export {
+  schemaToDescriptor, schemaToDocument, serializeSchema, serializeSchemaDocument, toJSONSchema
+} from './src/main/ets/core/schema';
 export { ErrorCode, MessageCatalog, MessageParams, ValidatorI18n } from './src/main/ets/core/i18n';
 export {
   StringRulePlugin, BasicStringRulePlugin, registerStringRule, unregisterStringRule, getStringRule

@@ -188,7 +188,9 @@ transformed output. `default()` handles only `undefined`, while `nullable()` add
 ### Schema metadata, serialization, and JSON Schema
 
 ```typescript
-import { v, schemaToDescriptor, serializeSchema, toJSONSchema } from '@hmkit/validator';
+import {
+  v, schemaToDescriptor, serializeSchema, serializeSchemaDocument, toJSONSchema
+} from '@hmkit/validator';
 
 const userSchema = v.object({
   'name': v.string().required().min(2).label('Name'),
@@ -201,7 +203,8 @@ const userSchema = v.object({
 });
 
 const descriptor = schemaToDescriptor(userSchema);
-const saved = serializeSchema(userSchema, 2);
+const saved = serializeSchema(userSchema, 2); // 0.8-compatible structure
+const document = serializeSchemaDocument(userSchema, 2); // recommended versioned 1.0 document
 const jsonSchema = toJSONSchema(userSchema);
 ```
 
@@ -217,6 +220,31 @@ toJSONSchema(schema, 'ignore');    // emit only the standard-compatible subset
 
 `serializeSchema()` serializes structure, not executable functions. It is intended for documentation, caching, and
 auditing; it does not promise to rebuild custom predicates or transforms from JSON.
+
+### 1.0 common schemas, object composition, and safe coercion
+
+```typescript
+const settings = v.record(v.coerceString());
+settings.parse({ 'retry': 3 }); // retry -> '3'
+
+const point = v.tuple([v.number(), v.number()]);
+point.validate([120.1, 30.2]);
+
+const event = v.discriminatedUnion('type', {
+  'text': v.object({ 'type': v.literal('text'), 'value': v.string().required() }),
+  'count': v.object({ 'type': v.literal('count'), 'value': v.number().required() }),
+});
+
+const updateUser = v.object({
+  'name': v.string().required(),
+  'age': v.number().required(),
+  'secret': v.string(),
+}).partial(['age']).omit(['secret']).strip();
+```
+
+Objects remain `passthrough` by default for 0.x compatibility. `.strict()` rejects unknown keys, while `.strip()`
+removes them from parsed output. `partial/pick/omit` return independent schemas. `coerceNumber()` deliberately
+does not turn empty strings or booleans into numbers.
 
 ### On-demand rules and plugins
 
@@ -342,6 +370,11 @@ v.date().strict().validate('2024-01-01T08:00:00+08:00'); // pass: datetime inclu
 | `v.array(element)` | Create an array validator; `element` is the per-element validator |
 | `v.literal(value, message?)` | Exact-value validator using `===` |
 | `v.union(schemas, message?)` | Composition validator; succeeds when any member succeeds |
+| `v.record(valueSchema, message?)` | String-keyed record whose values share one schema |
+| `v.tuple(items, message?)` | Fixed-length positional array; ArkTS output is `Array<Object>` |
+| `v.discriminatedUnion(field, variants, message?)` | Select an object variant directly by its discriminator |
+| `v.preprocess(fn, schema, message?)` | Preprocess before the inner schema; thrown errors become `preprocess` issues |
+| `v.coerceString/Number/Boolean/Date(message?)` | Safely coerce only explicitly supported representations |
 | `v.setLocale(locale)` / `v.getLocale()` | Set/read the current locale (`zh-CN` / `en-US` built in) |
 | `v.addLocale(locale, messages)` | Register or incrementally override a custom message catalog |
 
@@ -438,6 +471,9 @@ Accepts a `Date`, a millisecond timestamp, or a parseable date string.
 |---|---|
 | `.refine(fn, message, path?)` | Cross-field: fails when `fn(wholeObject)` returns `false`; `path` assigns the error to a field. `fn` should null-check internally; thrown errors are caught safely |
 | `.optional()` | Skip when the object field is `null`/`undefined` (nullable nested object) |
+| `.strict(msg?)` / `.passthrough()` / `.strip()` | Reject / retain / remove unknown keys during parse; passthrough is the default |
+| `.partial(keys?)` | Make all or selected fields optional at the object layer; returns a new schema |
+| `.pick(keys)` / `.omit(keys)` | Include/exclude fields and return a new schema; chain `.strip()` for output projection |
 
 ### Sync / async validation
 
@@ -496,7 +532,7 @@ interface ParseResult<T> {
 
 ## Version
 
-Current version: `0.8.0`. Roadmap:
+Current stable release: `1.0.0`. Roadmap:
 
 - `0.1.0` MVP: chainable API + China-localized rules + object validation
 - `0.2.0`: array validation, async validation, deep nesting, ArkUI form binding `FormValidator`
@@ -506,7 +542,7 @@ Current version: `0.8.0`. Roadmap:
 - `0.6.0`: ArkUI debounce, async race protection, validation triggers, submitting/touched/dirty state, and field dependencies
 - `0.7.0`: independently importable China rules, a lite entry, and sync/async rule plugins
 - `0.8.0`: schema metadata, structural serialization, JSON Schema conversion, and explicit unsupported-rule policies
-- `0.9.0` (planned): reversible codecs, schema restoration/migration research, and a fuller ArkUI adapter layer
+- `1.0.0`: record/tuple/discriminated unions, object composition and unknown-key modes, safe coercion, versioned descriptors, reference safety, and release quality gates
 
 ## Development and verification
 
@@ -514,10 +550,11 @@ Current version: `0.8.0`. Roadmap:
 ./scripts/verify.sh
 ```
 
-This installs dependencies, runs local Hypium tests, enforces coverage thresholds, builds a release HAR, and checks the package for publishing credentials and release metadata.
-Current baseline: 158/158 tests passing; 94.46% line, 86.29% function, and 88.31% branch coverage. New tests cover metadata, every schema descriptor family, nested/composed conversion, all three unsupported-rule policies, third-party schemas, and deterministic serialization; the 0.1-0.7 API regressions remain green. Release thresholds are 90% / 80% / 80%; reports are generated under `validator/.test/default/outputs/test/reports/`.
+This installs dependencies, runs local Hypium tests, enforces coverage thresholds, builds a release HAR, and checks publishing credentials, release metadata, the public API contract, and a 128 KiB package-size budget.
+Current baseline: 194/194 tests passing; 94.05% line, 87.98% function, and 84.51% branch coverage. New tests cover common schemas, object composition, preprocessing/coercion, versioned descriptors, references/cycles, duplicate-ID conflicts, discriminator constraints, deterministic property checks, and a common-path performance baseline; all 0.1-0.8 regressions remain green. Release thresholds are 90% / 80% / 80%; reports are generated under `validator/.test/default/outputs/test/reports/`.
 
 See the full [CHANGELOG](./CHANGELOG.md).
+For upgrades from 0.x, see [Migrating to 1.0](./MIGRATION-1.0.md).
 
 ## License
 

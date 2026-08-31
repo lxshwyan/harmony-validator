@@ -24,6 +24,9 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
   private emptyMsg?: string;
   private fieldLabel: string = '';
   private docs: SchemaDocs = new SchemaDocs();
+  private unknownKeysMode: string = 'passthrough';
+  private unknownKeyMessage?: string;
+  private optionalKeys: Array<string> = [];
 
   constructor(shape: SchemaShape) {
     this.shape = shape;
@@ -35,9 +38,16 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
     const result = this.docs.build('object', !this.isOptional, false);
     const properties: Record<string, SchemaDescriptor> = {};
     for (const key of Object.keys(this.shape)) {
-      properties[key] = schemaToDescriptor(this.shape[key]);
+      const child = schemaToDescriptor(this.shape[key]);
+      if (this.optionalKeys.indexOf(key) !== -1) {
+        child.required = false;
+        child.conditionallyRequired = false;
+        result.optionalProperties.push(key);
+      }
+      properties[key] = child;
     }
     result.properties = properties;
+    result.unknownKeys = this.unknownKeysMode;
     return result;
   }
 
@@ -63,6 +73,70 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
   optional(): ObjectSchema<T> {
     this.isOptional = true;
     return this;
+  }
+
+  /** 未知字段时报错。默认行为仍为 passthrough，以兼容 0.x。 */
+  strict(message?: string): ObjectSchema<T> {
+    this.unknownKeysMode = 'strict';
+    this.unknownKeyMessage = message;
+    return this;
+  }
+
+  /** 保留未知字段，也是兼容默认模式。 */
+  passthrough(): ObjectSchema<T> {
+    this.unknownKeysMode = 'passthrough';
+    this.unknownKeyMessage = undefined;
+    return this;
+  }
+
+  /** 校验时接受未知字段，parse 输出时移除。 */
+  strip(): ObjectSchema<T> {
+    this.unknownKeysMode = 'strip';
+    this.unknownKeyMessage = undefined;
+    return this;
+  }
+
+  private copyWithShape(shape: SchemaShape): ObjectSchema<T> {
+    const result = new ObjectSchema<T>(shape);
+    result.refines = this.refines.slice();
+    result.isOptional = this.isOptional;
+    result.emptyMsg = this.emptyMsg;
+    result.fieldLabel = this.fieldLabel;
+    result.docs = this.docs.copy();
+    result.unknownKeysMode = this.unknownKeysMode;
+    result.unknownKeyMessage = this.unknownKeyMessage;
+    for (const key of this.optionalKeys) {
+      if (shape[key] !== undefined) result.optionalKeys.push(key);
+    }
+    return result;
+  }
+
+  /** 将全部字段或指定字段设为对象级可选，不修改子 Schema，也不污染原对象。 */
+  partial(keys?: Array<string>): ObjectSchema<T> {
+    const result = this.copyWithShape(this.shape);
+    const selected = keys ?? Object.keys(this.shape);
+    for (const key of selected) {
+      if (this.shape[key] !== undefined && result.optionalKeys.indexOf(key) === -1) {
+        result.optionalKeys.push(key);
+      }
+    }
+    return result;
+  }
+
+  /** 仅保留给定字段；返回独立 Schema。 */
+  pick(keys: Array<string>): ObjectSchema<T> {
+    const shape: SchemaShape = {};
+    for (const key of keys) if (this.shape[key] !== undefined) shape[key] = this.shape[key];
+    return this.copyWithShape(shape);
+  }
+
+  /** 排除给定字段；返回独立 Schema。 */
+  omit(keys: Array<string>): ObjectSchema<T> {
+    const shape: SchemaShape = {};
+    for (const key of Object.keys(this.shape)) {
+      if (keys.indexOf(key) === -1) shape[key] = this.shape[key];
+    }
+    return this.copyWithShape(shape);
   }
 
   /**
@@ -105,6 +179,20 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
       this.emptyMsg), this.fieldLabel)] };
   }
 
+  private isFieldOptional(key: string, data: Record<string, Object>): boolean {
+    return this.optionalKeys.indexOf(key) !== -1 && data[key] === undefined;
+  }
+
+  private appendUnknownErrors(data: Record<string, Object>, errors: ValidateError[]): void {
+    if (this.unknownKeysMode !== 'strict') return;
+    for (const key of Object.keys(data)) {
+      if (this.shape[key] === undefined) {
+        errors.push(validationError(issue(ErrorCode.UNKNOWN_KEY, this.unknownKeyMessage,
+          { 'key': key }), this.fieldLabel, key));
+      }
+    }
+  }
+
   validate(value: Object | null | undefined, siblings?: Record<string, Object>): ValidateResult {
     if (value === null || value === undefined) {
       return this.emptyResult();
@@ -116,6 +204,7 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
     const errors: ValidateError[] = [];
     const keys = Object.keys(this.shape);
     for (const key of keys) {
+      if (this.isFieldOptional(key, data)) continue;
       const fieldSchema = this.shape[key];
       // 把当前对象作为 siblings 传下去，供字段的 requiredWhen 读取兄弟字段
       const result = fieldSchema.validate(data[key], data);
@@ -126,6 +215,7 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
         }
       }
     }
+    this.appendUnknownErrors(data, errors);
     this.runRefines(data, errors);
     return { valid: errors.length === 0, errors };
   }
@@ -142,12 +232,16 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
     const errors: ValidateError[] = [];
     const keys = Object.keys(this.shape);
     const tasks: Array<Promise<ValidateResult>> = [];
+    const activeKeys: Array<string> = [];
     for (const key of keys) {
-      tasks.push(this.shape[key].validateAsync(data[key], data));
+      if (!this.isFieldOptional(key, data)) {
+        activeKeys.push(key);
+        tasks.push(this.shape[key].validateAsync(data[key], data));
+      }
     }
     const results = await Promise.all(tasks);
-    for (let i = 0; i < keys.length; i++) {
-      const key = keys[i];
+    for (let i = 0; i < activeKeys.length; i++) {
+      const key = activeKeys[i];
       const result = results[i];
       if (!result.valid) {
         for (const e of result.errors) {
@@ -156,6 +250,7 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
         }
       }
     }
+    this.appendUnknownErrors(data, errors);
     this.runRefines(data, errors);
     return { valid: errors.length === 0, errors };
   }
@@ -174,10 +269,11 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
     const data = value as Record<string, Object>;
     const output: Record<string, Object> = {};
     const errors: ValidateError[] = [];
-    for (const key of Object.keys(data)) {
-      output[key] = data[key];
+    if (this.unknownKeysMode === 'passthrough') {
+      for (const key of Object.keys(data)) output[key] = data[key];
     }
     for (const key of Object.keys(this.shape)) {
+      if (this.isFieldOptional(key, data)) continue;
       const parsed = parseSchema(this.shape[key], data[key], data);
       if (!parsed.success) {
         for (const error of parsed.errors) {
@@ -188,6 +284,7 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
         output[key] = parsed.value as Object;
       }
     }
+    this.appendUnknownErrors(data, errors);
     this.runRefines(data, errors);
     if (errors.length > 0) {
       return { success: false, errors };
@@ -211,17 +308,21 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
     const data = value as Record<string, Object>;
     const output: Record<string, Object> = {};
     const errors: ValidateError[] = [];
-    for (const key of Object.keys(data)) {
-      output[key] = data[key];
+    if (this.unknownKeysMode === 'passthrough') {
+      for (const key of Object.keys(data)) output[key] = data[key];
     }
     const keys = Object.keys(this.shape);
     const tasks: Array<Promise<ParseResult<Object>>> = [];
+    const activeKeys: Array<string> = [];
     for (const key of keys) {
-      tasks.push(parseSchemaAsync<Object>(this.shape[key], data[key], data));
+      if (!this.isFieldOptional(key, data)) {
+        activeKeys.push(key);
+        tasks.push(parseSchemaAsync<Object>(this.shape[key], data[key], data));
+      }
     }
     const results = await Promise.all(tasks);
-    for (let i = 0; i < keys.length; i++) {
-      const key = keys[i];
+    for (let i = 0; i < activeKeys.length; i++) {
+      const key = activeKeys[i];
       const parsed = results[i];
       if (!parsed.success) {
         for (const error of parsed.errors) {
@@ -232,6 +333,7 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
         output[key] = parsed.value as Object;
       }
     }
+    this.appendUnknownErrors(data, errors);
     this.runRefines(data, errors);
     if (errors.length > 0) {
       return { success: false, errors };

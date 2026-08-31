@@ -1,5 +1,5 @@
 /**
- * @hmkit/validator 使用示例
+ * @hmkit/validator 使用示例（仓库级，不进入发布 HAR）
  *
  * 运行方式：把本文件的逻辑拷到任意 ArkTS Ability/Page 里调用，
  * 或在 Previewer 中渲染下面的 ValidatorExample 组件查看结果。

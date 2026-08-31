@@ -9,6 +9,11 @@ export class ErrorCode {
   static readonly TYPE_BOOLEAN: string = 'type_boolean';
   static readonly TYPE_ARRAY: string = 'type_array';
   static readonly TYPE_OBJECT: string = 'type_object';
+  static readonly TUPLE_LENGTH: string = 'tuple_length';
+  static readonly DISCRIMINATOR: string = 'discriminator';
+  static readonly UNKNOWN_KEY: string = 'unknown_key';
+  static readonly PREPROCESS: string = 'preprocess';
+  static readonly COERCE: string = 'coerce';
   static readonly INVALID_NUMBER: string = 'invalid_number';
   static readonly INVALID_DATE: string = 'invalid_date';
   static readonly STRICT_DATE: string = 'strict_date';
@@ -67,6 +72,11 @@ const ZH_CN: MessageCatalog = {
   'type_boolean': '类型错误，期望布尔值',
   'type_array': '类型错误，期望数组',
   'type_object': '类型错误，期望对象',
+  'tuple_length': '数组长度必须为 {length}',
+  'discriminator': '无法根据字段 {field} 匹配候选类型',
+  'unknown_key': '不允许未知字段：{key}',
+  'preprocess': '值预处理失败',
+  'coerce': '无法转换为目标类型',
   'invalid_number': '不是有效的数字',
   'invalid_date': '不是有效的日期',
   'strict_date': '请输入严格 ISO 日期',
@@ -116,6 +126,11 @@ const EN_US: MessageCatalog = {
   'type_boolean': 'Expected a boolean',
   'type_array': 'Expected an array',
   'type_object': 'Expected an object',
+  'tuple_length': 'Expected exactly {length} items',
+  'discriminator': 'No variant matches discriminator {field}',
+  'unknown_key': 'Unknown key is not allowed: {key}',
+  'preprocess': 'Value preprocessing failed',
+  'coerce': 'Value cannot be coerced to the target type',
   'invalid_number': 'Invalid number',
   'invalid_date': 'Invalid date',
   'strict_date': 'Expected a strict ISO date',

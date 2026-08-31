@@ -6,6 +6,11 @@ import v050StabilityTest from './V050Stability.test';
 import v060Test from './V060.test';
 import v070Test from './V070.test';
 import v080Test from './V080.test';
+import v100SchemasTest from './V100Schemas.test';
+import v100ObjectTest from './V100Object.test';
+import v100EffectsTest from './V100Effects.test';
+import v100DescriptorTest from './V100Descriptor.test';
+import v100StabilityTest from './V100Stability.test';
 
 export default function testsuite(): void {
   validatorTest();
@@ -16,4 +21,9 @@ export default function testsuite(): void {
   v060Test();
   v070Test();
   v080Test();
+  v100SchemasTest();
+  v100ObjectTest();
+  v100EffectsTest();
+  v100DescriptorTest();
+  v100StabilityTest();
 }

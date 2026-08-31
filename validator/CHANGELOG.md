@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.0
+
+- 新增 `v.record()`、`v.tuple()` 与 `v.discriminatedUnion()`，覆盖动态字典、固定位置数组和高效判别联合
+- ObjectSchema 新增 `.strict()` / `.passthrough()` / `.strip()` 未知字段策略；默认继续 passthrough，兼容 0.x
+- ObjectSchema 新增 `.partial()` / `.pick()` / `.omit()`，返回独立 Schema，不修改原对象或子 Schema
+- 新增 `v.preprocess()` 与 `v.coerceString()` / `coerceNumber()` / `coerceBoolean()` / `coerceDate()`；转换使用明确白名单并安全映射异常
+- 新增版本化 `SchemaDocument`、`schemaToDocument()` 与 `serializeSchemaDocument()`；原 `serializeSchema()` 保持兼容
+- JSON Schema 支持 tuple `prefixItems`、record `additionalProperties`、discriminated union、对象 strict、具名 `$defs/$ref` 和循环引用检测
+- JSON Schema 的判别联合分支会显式约束判别字段；重复 `metadata.id` 对应不同结构时立即报错，避免静默生成错误 `$ref`
+- 新增公开 API 合约门禁和 128 KiB HAR 体积预算；补充确定性性质测试、重复组合测试与 2,000 次常用校验性能基线
+- 仓库示例移出 HAR 模块目录，保留示例源码的同时避免将非运行时代码打入发布包
+- 自动化测试增至 194 项；当前覆盖率 lines 94.05%、functions 87.98%、branches 84.51%
+
 ## 0.8.0
 
 - 所有内置 Schema 新增 `.meta()`、`.describe()` 和 `.describeSchema()`，可记录 id、标题、说明、示例、废弃状态、label、必填状态与规则结构

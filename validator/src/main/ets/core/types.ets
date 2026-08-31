@@ -63,6 +63,11 @@ export class SchemaDescriptor {
   rules: Array<SchemaRuleDescriptor> = [];
   properties?: Record<string, SchemaDescriptor>;
   items?: SchemaDescriptor;
+  tupleItems: Array<SchemaDescriptor> = [];
+  discriminator?: string;
+  variants?: Record<string, SchemaDescriptor>;
+  unknownKeys?: string;
+  optionalProperties: Array<string> = [];
   options: Array<SchemaDescriptor> = [];
   inner?: SchemaDescriptor;
   value?: Object;
@@ -71,6 +76,17 @@ export class SchemaDescriptor {
 
   constructor(kind: string) {
     this.kind = kind;
+  }
+}
+
+/** 1.0 起推荐的版本化 Schema 文档封装；旧 SchemaDescriptor 序列化入口继续保留。 */
+export class SchemaDocument {
+  format: string = 'hmkit-schema';
+  version: string = '1.0';
+  schema: SchemaDescriptor;
+
+  constructor(schema: SchemaDescriptor) {
+    this.schema = schema;
   }
 }
 

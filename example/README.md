@@ -1,4 +1,4 @@
-# @hmkit/validator 示例
+# @hmkit/validator 仓库示例
 
 `Example.ets` 演示了三类用法：
 

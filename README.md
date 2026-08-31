@@ -29,7 +29,7 @@ schema.validate({ 'name': '张', 'phone': '123', 'age': 16 });
 // valid=false，errors 带字段路径
 ```
 
-更多用法见 [`validator/example/Example.ets`](./validator/example/Example.ets)。
+更多用法见 [`example/Example.ets`](./example/Example.ets)。示例保留在仓库中，不进入发布 HAR。
 
 ## 工程结构
 
@@ -44,7 +44,7 @@ schema.validate({ 'name': '张', 'phone': '123', 'age': 16 });
 ./scripts/verify.sh
 ```
 
-当前版本为 `0.8.0`，158/158 项自动化测试通过。
+当前稳定版本为 `1.0.0`，194/194 项自动化测试通过。
 
 ## 链接
 

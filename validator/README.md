@@ -188,7 +188,9 @@ age.parse('18'); // { success: true, value: 18, errors: [] }
 ### Schema 元数据、序列化与 JSON Schema
 
 ```typescript
-import { v, schemaToDescriptor, serializeSchema, toJSONSchema } from '@hmkit/validator';
+import {
+  v, schemaToDescriptor, serializeSchema, serializeSchemaDocument, toJSONSchema
+} from '@hmkit/validator';
 
 const userSchema = v.object({
   'name': v.string().required().min(2).label('姓名'),
@@ -201,7 +203,8 @@ const userSchema = v.object({
 });
 
 const descriptor = schemaToDescriptor(userSchema); // 稳定、带类型的 SchemaDescriptor
-const saved = serializeSchema(userSchema, 2);        // 可缓存/审计的 JSON 字符串
+const saved = serializeSchema(userSchema, 2);        // 0.8 兼容结构
+const document = serializeSchemaDocument(userSchema, 2); // 推荐：带 format/version 的 1.0 文档
 const jsonSchema = toJSONSchema(userSchema);         // Draft 2020-12 风格对象
 ```
 
@@ -217,6 +220,30 @@ toJSONSchema(schema, 'ignore');    // 只输出可标准表达的部分
 
 `serializeSchema()` 是结构序列化，不会序列化或恢复函数；因此它用于文档、缓存和审计，不承诺从 JSON
 重建带自定义 predicate/transform 的可执行 Schema。
+
+### 1.0 常用 Schema、对象组合与安全转换
+
+```typescript
+const settings = v.record(v.coerceString());
+settings.parse({ 'retry': 3 }); // retry -> '3'
+
+const point = v.tuple([v.number(), v.number()]);
+point.validate([120.1, 30.2]);
+
+const event = v.discriminatedUnion('type', {
+  'text': v.object({ 'type': v.literal('text'), 'value': v.string().required() }),
+  'count': v.object({ 'type': v.literal('count'), 'value': v.number().required() }),
+});
+
+const updateUser = v.object({
+  'name': v.string().required(),
+  'age': v.number().required(),
+  'secret': v.string(),
+}).partial(['age']).omit(['secret']).strip();
+```
+
+对象默认仍为 `passthrough`，保持 0.x 行为；`.strict()` 拒绝未知字段，`.strip()` 在 parse 输出中移除未知字段。
+`partial/pick/omit` 返回独立 Schema，不会污染原 Schema。`coerceNumber()` 不会把空字符串或布尔值静默转为数字。
 
 ### 中国规则按需引入与插件
 
@@ -363,6 +390,11 @@ v.date().strict().validate('2024-01-01T08:00:00+08:00'); // 通过：日期时�
 | `v.array(element)` | 创建数组校验器，`element` 为元素校验器 |
 | `v.literal(value, message?)` | 创建精确值校验器，使用 `===` 比较 |
 | `v.union(schemas, message?)` | 创建组合校验器，任一候选通过即通过 |
+| `v.record(valueSchema, message?)` | 创建字符串键字典，所有属性值使用同一 Schema |
+| `v.tuple(items, message?)` | 创建固定长度、逐位置校验的异构数组；ArkTS 输出为 `Array<Object>` |
+| `v.discriminatedUnion(field, variants, message?)` | 按对象判别字段直接选择候选 Schema |
+| `v.preprocess(fn, schema, message?)` | 在内部 Schema 前预处理；异常转为 `preprocess` 错误 |
+| `v.coerceString/Number/Boolean/Date(message?)` | 使用明确白名单执行安全类型转换 |
 | `v.setLocale(locale)` / `v.getLocale()` | 切换或读取当前语言（内置 `zh-CN` / `en-US`） |
 | `v.addLocale(locale, messages)` | 注册或增量覆盖自定义语言包 |
 
@@ -458,6 +490,9 @@ v.date().strict().validate('2024-01-01T08:00:00+08:00'); // 通过：日期时�
 |---|---|
 | `.refine(fn, message, path?)` | 跨字段校验：`fn` 拿到整个对象返回 `false` 时报错；`path` 指定错误归属字段（默认对象级）。`fn` 内部应自行判空，即便抛异常也会被安全捕获 |
 | `.optional()` | 对象字段可为 `null`/`undefined` 时跳过（可空嵌套对象） |
+| `.strict(msg?)` / `.passthrough()` / `.strip()` | 拒绝 / 保留 / parse 时移除未知字段；默认 passthrough |
+| `.partial(keys?)` | 将全部或指定字段设为对象级可选，返回独立 Schema |
+| `.pick(keys)` / `.omit(keys)` | 选择或排除字段，返回独立 Schema；需要投影输出时可继续链 `.strip()` |
 
 ### 同步 / 异步校验
 
@@ -516,7 +551,7 @@ interface ParseResult<T> {
 
 ## 版本
 
-当前版本 `0.8.0`。演进路线：
+当前稳定版本 `1.0.0`。演进路线：
 
 - `0.1.0` MVP：链式 API + 中国本地化规则 + 对象校验
 - `0.2.0`：数组校验、异步校验、深层嵌套、ArkUI 表单联动 `FormValidator`
@@ -526,7 +561,7 @@ interface ParseResult<T> {
 - `0.6.0`：ArkUI 防抖异步校验、竞态保护、触发策略、提交/touched/dirty 状态与字段依赖
 - `0.7.0`：中国规则按需导入、轻量入口、同步/异步规则插件和扩展机制
 - `0.8.0`：Schema 元数据、结构描述/序列化、JSON Schema 转换与不可表达能力策略
-- `0.9.0`（规划）：可逆 Codecs、Schema 恢复/迁移研究与更完整的 ArkUI 适配层
+- `1.0.0`：record/tuple/判别联合、对象组合与未知字段策略、安全转换、版本化描述、引用安全和发布质量门禁
 
 ## 开发与验证
 
@@ -534,10 +569,11 @@ interface ParseResult<T> {
 ./scripts/verify.sh
 ```
 
-该命令会安装依赖、运行 Hypium 本地测试、检查覆盖率门槛、构建 release HAR，并检查包内敏感发布信息和 release 元数据。
-当前基线：158/158 测试通过；行覆盖率 94.46%、函数 86.29%、分支 88.31%。新增用例覆盖元数据、全部 Schema 描述、嵌套/组合转换、三种不可表达策略、第三方 Schema 和稳定序列化；原有 0.1-0.7 API 回归继续通过。发布门槛分别为 90% / 80% / 80%，报告生成在 `validator/.test/default/outputs/test/reports/`。
+该命令会安装依赖、运行 Hypium 本地测试、检查覆盖率门槛、构建 release HAR，并检查敏感信息、release 元数据、公开 API 合约和 128 KiB 体积预算。
+当前基线：194/194 测试通过；行覆盖率 94.05%、函数 87.98%、分支 84.51%。新增用例覆盖常用 Schema、对象组合、预处理/转换、版本化描述、引用/循环、重复 ID 冲突、判别联合约束、确定性性质测试和常用路径性能基线；原有 0.1-0.8 API 回归继续通过。发布门槛为 90% / 80% / 80%，报告生成在 `validator/.test/default/outputs/test/reports/`。
 
 完整变更见 [CHANGELOG](./CHANGELOG.md)。
+从 0.x 升级请阅读 [1.0 迁移说明](./MIGRATION-1.0.md)。
 
 ## License
 
