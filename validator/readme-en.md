@@ -8,7 +8,7 @@ Write validations like you do with `zod` / `yup`, but with high-frequency Chines
 
 - 🔗 **Chainable, declarative API** — `v.string().required().phone()`, reads like plain language
 - 🇨🇳 **China rules out of the box** — mobile number, ID card (with checksum), bank card (Luhn), license plate (incl. new-energy), unified social credit code, postal code
-- 🪶 **On-demand rules and plugins** — lite entry, 14 independent rule subpaths, custom sync/async plugins
+- 🪶 **On-demand rules and plugins** — lite entry, 18 independent rule subpaths, custom sync/async plugins
 - 📦 **Zero dependencies**, pure ArkTS
 - 🧩 **Object / array validation** — whole-form validation with per-field error paths (incl. array indices like `items.0.name`)
 - 🪆 **Deep nesting** — objects and arrays nested to any depth
@@ -19,6 +19,9 @@ Write validations like you do with `zod` / `yup`, but with high-frequency Chines
 - 🌐 **i18n and error codes** — built-in Chinese/English, custom catalogs, field labels, stable `code`
 - 🧱 **Composition and transforms** — `literal` / `union` / `nullable` / `default` / `transform`
 - 🗺️ **Describable schemas** — metadata, stable serialization, and JSON Schema Draft 2020-12 conversion
+- 🌳 **Complete composition** — recursive `lazy`, `intersection`, conditional `when`, deep partials, object extend/merge
+- 🔁 **Bidirectional pipelines** — codecs, document restoration, JSON Schema import, and custom kind registries
+- 🧭 **Flexible execution** — business context, structured errors, error limits, batch validation, and cancellation
 - 📝 **ArkUI form binding** — `FormValidator` controller that wires up to `TextInput` and other components in real time
 - 💬 **Chinese error messages** by default, every message overridable
 
@@ -29,6 +32,25 @@ ohpm install @hmkit/validator
 ```
 
 ## Quick Start
+
+### 1.1 composition, context, and codecs
+
+```typescript
+import { v, validateValue, fromJSONSchema } from '@hmkit/validator';
+
+const amount = v.context(v.number().positive(),
+  (value: number, context: Record<string, Object>): boolean =>
+    value <= (context['limit'] as number), 'Amount exceeds limit');
+validateValue(amount, 80, { context: { 'limit': 100 }, abortEarly: true });
+
+const numberText = v.codec(v.string(), v.number(),
+  (input: string): number => Number(input),
+  (output: number): string => `${output}`);
+numberText.parse('42'); // value = 42
+numberText.encode(42);  // value = '42'
+
+const imported = fromJSONSchema({ 'type': 'string', 'minLength': 2 });
+```
 
 ### Single value
 
@@ -532,7 +554,7 @@ interface ParseResult<T> {
 
 ## Version
 
-Current stable release: `1.0.0`. Roadmap:
+Current development release: `1.1.0` (release candidate). Roadmap:
 
 - `0.1.0` MVP: chainable API + China-localized rules + object validation
 - `0.2.0`: array validation, async validation, deep nesting, ArkUI form binding `FormValidator`
@@ -543,6 +565,7 @@ Current stable release: `1.0.0`. Roadmap:
 - `0.7.0`: independently importable China rules, a lite entry, and sync/async rule plugins
 - `0.8.0`: schema metadata, structural serialization, JSON Schema conversion, and explicit unsupported-rule policies
 - `1.0.0`: record/tuple/discriminated unions, object composition and unknown-key modes, safe coercion, versioned descriptors, reference safety, and release quality gates
+- `1.1.0`: recursive/intersection/conditional schemas, context, codecs, structured errors, batch/cancellation, document restoration, JSON Schema import, and 18 modular rules
 
 ## Development and verification
 
@@ -551,7 +574,7 @@ Current stable release: `1.0.0`. Roadmap:
 ```
 
 This installs dependencies, runs local Hypium tests, enforces coverage thresholds, builds a release HAR, and checks publishing credentials, release metadata, the public API contract, and a 128 KiB package-size budget.
-Current baseline: 194/194 tests passing; 94.05% line, 87.98% function, and 84.51% branch coverage. New tests cover common schemas, object composition, preprocessing/coercion, versioned descriptors, references/cycles, duplicate-ID conflicts, discriminator constraints, deterministic property checks, and a common-path performance baseline; all 0.1-0.8 regressions remain green. Release thresholds are 90% / 80% / 80%; reports are generated under `validator/.test/default/outputs/test/reports/`.
+Current baseline: 232/232 tests passing; 91.18% line, 81.01% function, and 81.60% branch coverage. New tests cover recursive/intersection/conditional schemas, codecs, context, error tools, batch/cancellation, document restoration, JSON Schema import, standard-format corpora, deep recursion, and round-trip stability; all 1.0 and earlier regressions remain green. Release thresholds are 90% / 80% / 80%; reports are generated under `validator/.test/default/outputs/test/reports/`.
 
 See the full [CHANGELOG](./CHANGELOG.md).
 For upgrades from 0.x, see [Migrating to 1.0](./MIGRATION-1.0.md).

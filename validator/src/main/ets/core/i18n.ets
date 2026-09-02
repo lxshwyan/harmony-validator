@@ -53,6 +53,12 @@ export class ErrorCode {
   static readonly UNION: string = 'union';
   static readonly TRANSFORM: string = 'transform';
   static readonly PLUGIN_MISSING: string = 'plugin_missing';
+  static readonly NEVER: string = 'never';
+  static readonly TYPE_NULL: string = 'type_null';
+  static readonly CANCELLED: string = 'cancelled';
+  static readonly CODEC_DECODE: string = 'codec_decode';
+  static readonly CODEC_ENCODE: string = 'codec_encode';
+  static readonly CONTEXT: string = 'context';
 }
 
 export type MessageCatalog = Record<string, string>;
@@ -116,6 +122,12 @@ const ZH_CN: MessageCatalog = {
   'union': '取值不符合任一候选类型',
   'transform': '值转换失败',
   'plugin_missing': '字符串规则插件未注册：{name}',
+  'never': '不允许提供该值',
+  'type_null': '必须为 null',
+  'cancelled': '校验已取消',
+  'codec_decode': '输入解码失败',
+  'codec_encode': '输出编码失败',
+  'context': '业务上下文校验未通过',
 };
 
 const EN_US: MessageCatalog = {
@@ -170,6 +182,12 @@ const EN_US: MessageCatalog = {
   'union': 'Value does not match any union member',
   'transform': 'Value transformation failed',
   'plugin_missing': 'String rule plugin is not registered: {name}',
+  'never': 'Value is not allowed',
+  'type_null': 'Must be null',
+  'cancelled': 'Validation was cancelled',
+  'codec_decode': 'Input decoding failed',
+  'codec_encode': 'Output encoding failed',
+  'context': 'Validation context rule failed',
 };
 
 /** 全局语言配置。默认 zh-CN；缺失词条回退到 zh-CN。 */

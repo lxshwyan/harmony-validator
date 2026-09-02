@@ -11,6 +11,10 @@ import v100ObjectTest from './V100Object.test';
 import v100EffectsTest from './V100Effects.test';
 import v100DescriptorTest from './V100Descriptor.test';
 import v100StabilityTest from './V100Stability.test';
+import v110CoreTest from './V110Core.test';
+import v110InteropTest from './V110Interop.test';
+import v110FormatsTest from './V110Formats.test';
+import v110StressTest from './V110Stress.test';
 
 export default function testsuite(): void {
   validatorTest();
@@ -26,4 +30,8 @@ export default function testsuite(): void {
   v100EffectsTest();
   v100DescriptorTest();
   v100StabilityTest();
+  v110CoreTest();
+  v110InteropTest();
+  v110FormatsTest();
+  v110StressTest();
 }

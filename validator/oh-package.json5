@@ -1,7 +1,7 @@
 {
   "name": "@hmkit/validator",
-  "version": "1.0.0",
-  "description": "鸿蒙 ArkTS 声明式表单/数据校验库，链式 API，内置手机号、身份证、银行卡等中国本地化规则",
+  "version": "1.1.0",
+  "description": "鸿蒙 ArkTS Schema 与表单校验库，支持递归组合、Codec、JSON Schema 双向转换、业务上下文和模块化规则",
   "main": "Index.ets",
   "oh-exports": [
     "Index.ets",

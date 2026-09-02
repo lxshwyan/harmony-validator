@@ -139,6 +139,33 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
     return this.copyWithShape(shape);
   }
 
+  /** 添加或覆盖字段，返回独立 Schema。 */
+  extend(additions: SchemaShape): ObjectSchema<T> {
+    const shape: SchemaShape = {};
+    for (const key of Object.keys(this.shape)) shape[key] = this.shape[key];
+    for (const key of Object.keys(additions)) shape[key] = additions[key];
+    return this.copyWithShape(shape);
+  }
+
+  /** 合并另一个对象 Schema；同名字段以 other 为准。 */
+  merge(other: ObjectSchema<T>): ObjectSchema<T> {
+    const result = this.extend(other.shape);
+    for (const key of other.optionalKeys) {
+      if (result.optionalKeys.indexOf(key) === -1) result.optionalKeys.push(key);
+    }
+    return result;
+  }
+
+  /** 深层对象字段可选；不修改原对象及其子 Schema。 */
+  deepPartial(): ObjectSchema<T> {
+    const shape: SchemaShape = {};
+    for (const key of Object.keys(this.shape)) {
+      const child = this.shape[key];
+      shape[key] = child instanceof ObjectSchema ? (child as ObjectSchema).deepPartial() : child;
+    }
+    return this.copyWithShape(shape).partial();
+  }
+
   /**
    * 跨字段校验。`fn` 拿到整个对象，返回 false 时报错。
    * 例：确认密码 —— `.refine(o => o['pwd'] === o['confirm'], '两次密码不一致', 'confirm')`

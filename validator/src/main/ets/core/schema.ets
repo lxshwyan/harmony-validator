@@ -310,6 +310,13 @@ function descriptorToJSONBody(source: SchemaDescriptor, context: JSONConversionC
     target['type'] = 'number';
   } else if (source.kind === 'boolean') {
     target['type'] = 'boolean';
+  } else if (source.kind === 'any' || source.kind === 'unknown') {
+    // 空 JSON Schema 接受任意 JSON 值。
+  } else if (source.kind === 'never') {
+    const impossible: Record<string, Object> = {};
+    target['not'] = impossible;
+  } else if (source.kind === 'null') {
+    target['type'] = 'null';
   } else if (source.kind === 'date') {
     let strict = false;
     for (const rule of source.rules) {
@@ -387,6 +394,20 @@ function descriptorToJSONBody(source: SchemaDescriptor, context: JSONConversionC
       anyOf.push(descriptorToJSON(option, context));
     }
     target['anyOf'] = anyOf;
+  } else if (source.kind === 'intersection') {
+    const allOf: Array<Object> = [];
+    for (const option of source.options) allOf.push(descriptorToJSON(option, context));
+    target['allOf'] = allOf;
+  } else if (source.kind === 'conditional') {
+    const anyOf: Array<Object> = [];
+    for (const option of source.options) anyOf.push(descriptorToJSON(option, context));
+    target['anyOf'] = anyOf;
+  } else if (source.kind === 'lazy') {
+    if (source.inner !== undefined) target = descriptorToJSON(source.inner, context);
+  } else if (source.kind === 'codec') {
+    if (source.options.length > 0) target = descriptorToJSON(source.options[0], context);
+  } else if (source.kind === 'context') {
+    if (source.inner !== undefined) target = descriptorToJSON(source.inner, context);
   } else if (source.kind === 'discriminated-union') {
     const oneOf: Array<Object> = [];
     if (source.variants !== undefined) {

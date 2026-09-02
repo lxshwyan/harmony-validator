@@ -8,7 +8,7 @@
 
 - 🔗 **链式声明式 API** —— `v.string().required().phone()`，读起来像说话
 - 🇨🇳 **中国规则开箱即用** —— 手机号、身份证（含校验位）、银行卡（Luhn）、车牌（含新能源）、统一社会信用代码、邮编
-- 🪶 **按需规则与插件** —— `lite` 入口、14 个独立规则子路径、自定义同步/异步插件
+- 🪶 **按需规则与插件** —— `lite` 入口、18 个独立规则子路径、自定义同步/异步插件
 - 📦 **零依赖**、纯 ArkTS 实现
 - 🧩 **对象 / 数组校验** —— 整表校验，错误带字段路径（含数组下标，如 `items.0.name`）
 - 🪆 **深层嵌套** —— 对象、数组任意层级互相嵌套
@@ -19,6 +19,9 @@
 - 🌐 **国际化与错误码** —— 内置中英文、自定义语言包、字段 label 和稳定 `code`
 - 🧱 **组合与转换** —— `literal` / `union` / `nullable` / `default` / `transform`
 - 🗺️ **Schema 可描述** —— 元数据、稳定序列化与 JSON Schema Draft 2020-12 转换
+- 🌳 **完整组合能力** —— 递归 `lazy`、交叉 `intersection`、条件 `when`、深层 partial 与对象扩展/合并
+- 🔁 **双向数据管线** —— Codec 编解码、Schema 文档恢复、JSON Schema 导入与可插拔 kind 注册表
+- 🧭 **灵活执行策略** —— 业务上下文、结构化错误、错误上限、批量校验和协作式取消
 - 📝 **ArkUI 表单联动** —— `FormValidator` 控制器，与 `TextInput` 等组件实时联动
 - 💬 **中文错误提示** —— 默认中文，且每条都可自定义
 
@@ -29,6 +32,25 @@ ohpm install @hmkit/validator
 ```
 
 ## 快速上手
+
+### 1.1 组合、上下文与 Codec
+
+```typescript
+import { v, validateValue, fromJSONSchema } from '@hmkit/validator';
+
+const amount = v.context(v.number().positive(),
+  (value: number, context: Record<string, Object>): boolean =>
+    value <= (context['limit'] as number), '超过业务额度');
+validateValue(amount, 80, { context: { 'limit': 100 }, abortEarly: true });
+
+const numberText = v.codec(v.string(), v.number(),
+  (input: string): number => Number(input),
+  (output: number): string => `${output}`);
+numberText.parse('42'); // value = 42
+numberText.encode(42);  // value = '42'
+
+const imported = fromJSONSchema({ 'type': 'string', 'minLength': 2 });
+```
 
 ### 单值校验
 
@@ -551,7 +573,7 @@ interface ParseResult<T> {
 
 ## 版本
 
-当前稳定版本 `1.0.0`。演进路线：
+当前开发版本 `1.1.0`（发布候选）。演进路线：
 
 - `0.1.0` MVP：链式 API + 中国本地化规则 + 对象校验
 - `0.2.0`：数组校验、异步校验、深层嵌套、ArkUI 表单联动 `FormValidator`
@@ -562,6 +584,7 @@ interface ParseResult<T> {
 - `0.7.0`：中国规则按需导入、轻量入口、同步/异步规则插件和扩展机制
 - `0.8.0`：Schema 元数据、结构描述/序列化、JSON Schema 转换与不可表达能力策略
 - `1.0.0`：record/tuple/判别联合、对象组合与未知字段策略、安全转换、版本化描述、引用安全和发布质量门禁
+- `1.1.0`：递归/交叉/条件 Schema、上下文、Codec、结构化错误、批量/取消、文档恢复、JSON Schema 导入与 18 个模块化规则
 
 ## 开发与验证
 
@@ -570,7 +593,7 @@ interface ParseResult<T> {
 ```
 
 该命令会安装依赖、运行 Hypium 本地测试、检查覆盖率门槛、构建 release HAR，并检查敏感信息、release 元数据、公开 API 合约和 128 KiB 体积预算。
-当前基线：194/194 测试通过；行覆盖率 94.05%、函数 87.98%、分支 84.51%。新增用例覆盖常用 Schema、对象组合、预处理/转换、版本化描述、引用/循环、重复 ID 冲突、判别联合约束、确定性性质测试和常用路径性能基线；原有 0.1-0.8 API 回归继续通过。发布门槛为 90% / 80% / 80%，报告生成在 `validator/.test/default/outputs/test/reports/`。
+当前基线：232/232 测试通过；行覆盖率 91.18%、函数 81.01%、分支 81.60%。新增用例覆盖递归/交叉/条件 Schema、Codec、上下文、错误工具、批量/取消、文档恢复、JSON Schema 导入、标准格式语料、深层递归和往返稳定性；1.0 及更早版本回归继续通过。发布门槛为 90% / 80% / 80%，报告生成在 `validator/.test/default/outputs/test/reports/`。
 
 完整变更见 [CHANGELOG](./CHANGELOG.md)。
 从 0.x 升级请阅读 [1.0 迁移说明](./MIGRATION-1.0.md)。

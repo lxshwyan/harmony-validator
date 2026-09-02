@@ -17,7 +17,7 @@ if rg -n "registerAllStringRules|rules/registerAll" "${LITE_ENTRY}"; then
   exit 1
 fi
 
-RULES=(mobile email idCard bankCard plateNumber creditCode postalCode landline vin ipv4 chineseName qq wechat url)
+RULES=(mobile email idCard bankCard plateNumber creditCode postalCode landline vin ipv4 chineseName qq wechat url uuid ipv6 base64 hostname)
 for rule in "${RULES[@]}"; do
   wrapper="${ROOT_DIR}/validator/rules/${rule}.ets"
   implementation="${ROOT_DIR}/validator/src/main/ets/rules/${rule}.ets"

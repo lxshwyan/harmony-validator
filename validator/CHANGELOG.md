@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.0
+
+- 新增 `v.any()`、`v.unknown()`、`v.never()`、`v.null()`、`v.lazy()` 与 `v.intersection()`
+- 新增 `v.when()` 以及 ObjectSchema `.extend()` / `.merge()` / `.deepPartial()`
+- 新增 `v.codec()` 双向编解码和 `v.context()` 业务上下文规则
+- 新增结构化错误、错误上限、批量校验与协作式取消
+- 新增 `SchemaRegistry`、Schema 文档恢复与 JSON Schema 导入
+- 新增 UUID、IPv6、Base64、hostname 四个按需规则模块
+- 自动化测试增至 232 项；覆盖率 lines 91.18%、functions 81.01%、branches 81.60%
+
 ## 1.0.0
 
 - 新增 `v.record()`、`v.tuple()` 与 `v.discriminatedUnion()`，覆盖动态字典、固定位置数组和高效判别联合

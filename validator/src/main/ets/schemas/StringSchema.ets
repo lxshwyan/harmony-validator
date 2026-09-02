@@ -144,8 +144,9 @@ export class StringSchema implements ParsableSchema<string> {
       this.docs.rule('format', 'email');
     } else if (plugin.name === 'url') {
       this.docs.rule('format', 'uri');
-    } else if (plugin.name === 'ipv4') {
-      this.docs.rule('format', 'ipv4');
+    } else if (plugin.name === 'ipv4' || plugin.name === 'ipv6' || plugin.name === 'uuid' ||
+      plugin.name === 'hostname') {
+      this.docs.rule('format', plugin.name);
     } else {
       this.docs.rule('plugin', plugin.code, plugin.name, plugin.hasAsync, false);
     }
@@ -236,6 +237,11 @@ export class StringSchema implements ParsableSchema<string> {
   url(message?: string): StringSchema {
     return this.useRegistered('url', message);
   }
+
+  uuid(message?: string): StringSchema { return this.useRegistered('uuid', message); }
+  ipv6(message?: string): StringSchema { return this.useRegistered('ipv6', message); }
+  base64(message?: string): StringSchema { return this.useRegistered('base64', message); }
+  hostname(message?: string): StringSchema { return this.useRegistered('hostname', message); }
 
   validate(value: Object | null | undefined, siblings?: Record<string, Object>): ValidateResult {
     const errors: ValidateError[] = [];

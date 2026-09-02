@@ -15,6 +15,12 @@ import { PreprocessFunction, PreprocessSchema } from './schemas/PreprocessSchema
 import { TransformSchema } from './schemas/EffectSchemas';
 import { ErrorCode, MessageCatalog, ValidatorI18n } from './core/i18n';
 import { registerAllStringRules } from './rules/registerAll';
+import { AnyValueSchema, NeverSchema, NullSchema, UnknownSchema } from './schemas/BasicSchemas';
+import {
+  IntersectionSchema, LazySchema, LazySchemaFactory, WhenPredicate, WhenSchema
+} from './schemas/CompositionSchemas';
+import { CodecDecoder, CodecEncoder, CodecSchema } from './schemas/CodecSchema';
+import { ContextPredicate, ContextSchema } from './schemas/ContextSchema';
 
 // 兼容主入口：自动注册全部内置字符串规则，维持 v.string().phone() 等历史 API。
 registerAllStringRules();
@@ -38,6 +44,35 @@ export class v {
 
   static getLocale(): string {
     return ValidatorI18n.getLocale();
+  }
+
+  static any(): AnyValueSchema { return new AnyValueSchema(); }
+
+  static unknown(): UnknownSchema { return new UnknownSchema(); }
+
+  static never(message?: string): NeverSchema { return new NeverSchema(message); }
+
+  static null(message?: string): NullSchema { return new NullSchema(message); }
+
+  static lazy<T>(factory: LazySchemaFactory<T>): LazySchema<T> { return new LazySchema<T>(factory); }
+
+  static intersection<T>(left: AnySchema<T>, right: AnySchema<T>): IntersectionSchema<T> {
+    return new IntersectionSchema<T>(left, right);
+  }
+
+  static when<T>(field: string, predicate: WhenPredicate, thenSchema: AnySchema<T>,
+    otherwiseSchema: AnySchema<T>): WhenSchema<T> {
+    return new WhenSchema<T>(field, predicate, thenSchema, otherwiseSchema);
+  }
+
+  static codec<I extends Object, O extends Object>(inputSchema: AnySchema<I>, outputSchema: AnySchema<O>,
+    decoder: CodecDecoder<I, O>,
+    encoder: CodecEncoder<I, O>, decodeMessage?: string, encodeMessage?: string): CodecSchema<I, O> {
+    return new CodecSchema<I, O>(inputSchema, outputSchema, decoder, encoder, decodeMessage, encodeMessage);
+  }
+
+  static context<T>(schema: AnySchema<T>, predicate: ContextPredicate<T>, message?: string): ContextSchema<T> {
+    return new ContextSchema<T>(schema, predicate, message);
   }
 
   static string(): StringSchema {

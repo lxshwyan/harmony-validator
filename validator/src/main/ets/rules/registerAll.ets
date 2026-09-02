@@ -13,6 +13,10 @@ import { qqRule } from './qq';
 import { wechatRule } from './wechat';
 import { urlRule } from './url';
 import { vinRule, vinChecksumRule } from './vin';
+import { uuidRule } from './uuid';
+import { ipv6Rule } from './ipv6';
+import { base64Rule } from './base64';
+import { hostnameRule } from './hostname';
 
 let registered: boolean = false;
 
@@ -36,5 +40,9 @@ export function registerAllStringRules(): void {
   registerStringRule(qqRule);
   registerStringRule(wechatRule);
   registerStringRule(urlRule);
+  registerStringRule(uuidRule);
+  registerStringRule(ipv6Rule);
+  registerStringRule(base64Rule);
+  registerStringRule(hostnameRule);
   registered = true;
 }
