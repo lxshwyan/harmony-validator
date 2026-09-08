@@ -311,7 +311,7 @@ export class FormValidator {
   }
 
   private async validateDependents(source: string, allValues?: Record<string, Object>): Promise<void> {
-    if (allValues === undefined) {
+    if (allValues === undefined || this.disposed) {
       return;
     }
     const fields = this.dependents.get(source);

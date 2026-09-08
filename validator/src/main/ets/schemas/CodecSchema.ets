@@ -1,3 +1,4 @@
+import { ValidationOptions } from '../core/errors';
 import {
   AnySchema, ParsableSchema, ParseResult, SchemaDescriptor, SchemaMetadata, ValidateResult
 } from '../core/types';
@@ -45,51 +46,51 @@ export class CodecSchema<I extends Object, O extends Object> implements Parsable
     return result;
   }
 
-  private decode(input: ParseResult<I>): ParseResult<O> {
+  private decode(input: ParseResult<I>, siblings?: Record<string, Object>, options?: ValidationOptions): ParseResult<O> {
     if (!input.success || input.value === undefined) return { success: false, errors: input.errors };
     try {
-      return parseSchema<O>(this.outputSchema, this.decoder(input.value));
+      return parseSchema<O>(this.outputSchema, this.decoder(input.value), siblings, options);
     } catch (_error) {
       return { success: false, errors: [validationError(issue(ErrorCode.CODEC_DECODE, this.decodeMessage))] };
     }
   }
 
-  validate(value: Object | null | undefined): ValidateResult {
-    const result = this.parse(value);
+  validate(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ValidateResult {
+    const result = this.parse(value, siblings, options);
     return { valid: result.success, errors: result.errors };
   }
-  async validateAsync(value: Object | null | undefined): Promise<ValidateResult> {
-    const result = await this.parseAsync(value);
+  async validateAsync(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ValidateResult> {
+    const result = await this.parseAsync(value, siblings, options);
     return { valid: result.success, errors: result.errors };
   }
-  parse(value: Object | null | undefined): ParseResult<O> {
-    return this.decode(parseSchema<I>(this.inputSchema, value));
+  parse(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ParseResult<O> {
+    return this.decode(parseSchema<I>(this.inputSchema, value, siblings, options), siblings, options);
   }
-  async parseAsync(value: Object | null | undefined): Promise<ParseResult<O>> {
-    const input = await parseSchemaAsync<I>(this.inputSchema, value);
+  async parseAsync(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ParseResult<O>> {
+    const input = await parseSchemaAsync<I>(this.inputSchema, value, siblings, options);
     if (!input.success || input.value === undefined) return { success: false, errors: input.errors };
     try {
-      return parseSchemaAsync<O>(this.outputSchema, this.decoder(input.value));
+      return parseSchemaAsync<O>(this.outputSchema, this.decoder(input.value), siblings, options);
     } catch (_error) {
       return { success: false, errors: [validationError(issue(ErrorCode.CODEC_DECODE, this.decodeMessage))] };
     }
   }
 
-  encode(value: Object | null | undefined): ParseResult<I> {
-    const output = parseSchema<O>(this.outputSchema, value);
+  encode(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ParseResult<I> {
+    const output = parseSchema<O>(this.outputSchema, value, siblings, options);
     if (!output.success || output.value === undefined) return { success: false, errors: output.errors };
     try {
-      return parseSchema<I>(this.inputSchema, this.encoder(output.value));
+      return parseSchema<I>(this.inputSchema, this.encoder(output.value), siblings, options);
     } catch (_error) {
       return { success: false, errors: [validationError(issue(ErrorCode.CODEC_ENCODE, this.encodeMessage))] };
     }
   }
 
-  async encodeAsync(value: Object | null | undefined): Promise<ParseResult<I>> {
-    const output = await parseSchemaAsync<O>(this.outputSchema, value);
+  async encodeAsync(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ParseResult<I>> {
+    const output = await parseSchemaAsync<O>(this.outputSchema, value, siblings, options);
     if (!output.success || output.value === undefined) return { success: false, errors: output.errors };
     try {
-      return parseSchemaAsync<I>(this.inputSchema, this.encoder(output.value));
+      return parseSchemaAsync<I>(this.inputSchema, this.encoder(output.value), siblings, options);
     } catch (_error) {
       return { success: false, errors: [validationError(issue(ErrorCode.CODEC_ENCODE, this.encodeMessage))] };
     }

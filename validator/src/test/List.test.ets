@@ -15,8 +15,12 @@ import v110CoreTest from './V110Core.test';
 import v110InteropTest from './V110Interop.test';
 import v110FormatsTest from './V110Formats.test';
 import v110StressTest from './V110Stress.test';
+import v120Test from './V120.test';
+
+import v120ExpansionTest from './V120Expansion.test';
 
 export default function testsuite(): void {
+  v120ExpansionTest();
   validatorTest();
   schemaCoverageTest();
   chinaRulesTest();
@@ -34,4 +38,5 @@ export default function testsuite(): void {
   v110InteropTest();
   v110FormatsTest();
   v110StressTest();
+  v120Test();
 }

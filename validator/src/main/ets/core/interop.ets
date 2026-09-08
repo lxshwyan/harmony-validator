@@ -1,4 +1,7 @@
+import { ValidationOptions } from './errors';
+import { inspectJSONSchema, JSONSchemaImportOptions, JSONSchemaImportError } from './JSONImportDiagnostics';
 import { AnySchema, ParseResult, SchemaDescriptor, SchemaRuleDescriptor, ValidateResult } from './types';
+import { JSONApplicator, JSONTypeGuard, JSONStringKeywords } from './JSONApplicator';
 import { StringSchema } from '../schemas/StringSchema';
 import { NumberSchema } from '../schemas/NumberSchema';
 import { BooleanSchema } from '../schemas/BooleanSchema';
@@ -25,17 +28,17 @@ class ErasedSchema<T> implements AnySchema<Object> {
   private inner: AnySchema<T>;
 
   constructor(inner: AnySchema<T>) { this.inner = inner; }
-  validate(value: Object | null | undefined, siblings?: Record<string, Object>): ValidateResult {
-    return this.inner.validate(value, siblings);
+  validate(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ValidateResult {
+    return this.inner.validate(value, siblings, options);
   }
   validateAsync(value: Object | null | undefined,
-    siblings?: Record<string, Object>): Promise<ValidateResult> {
-    return this.inner.validateAsync(value, siblings);
+    siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ValidateResult> {
+    return this.inner.validateAsync(value, siblings, options);
   }
-  parse(value: Object | null | undefined, siblings?: Record<string, Object>): ParseResult<Object> {
-    const result = this.inner.parse === undefined ? undefined : this.inner.parse(value, siblings);
+  parse(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ParseResult<Object> {
+    const result = this.inner.parse === undefined ? undefined : this.inner.parse(value, siblings, options);
     if (result === undefined) {
-      const checked = this.inner.validate(value, siblings);
+      const checked = this.inner.validate(value, siblings, options);
       return checked.valid ? { success: true, value: value as Object, errors: [] }
         : { success: false, errors: checked.errors };
     }
@@ -44,9 +47,9 @@ class ErasedSchema<T> implements AnySchema<Object> {
       : { success: true, value: result.value as Object, errors: [] };
   }
   async parseAsync(value: Object | null | undefined,
-    siblings?: Record<string, Object>): Promise<ParseResult<Object>> {
-    if (this.inner.parseAsync === undefined) return this.parse(value, siblings);
-    const result = await this.inner.parseAsync(value, siblings);
+    siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ParseResult<Object>> {
+    if (this.inner.parseAsync === undefined) return this.parse(value, siblings, options);
+    const result = await this.inner.parseAsync(value, siblings, options);
     if (!result.success) return { success: false, errors: result.errors };
     return result.value === undefined ? { success: true, errors: [] }
       : { success: true, value: result.value as Object, errors: [] };
@@ -67,25 +70,25 @@ class RequiredPropertySchema implements AnySchema<Object> {
   private missing(): ValidateResult {
     return { valid: false, errors: [validationError(issue(ErrorCode.REQUIRED))] };
   }
-  validate(value: Object | null | undefined, siblings?: Record<string, Object>): ValidateResult {
-    return value === undefined ? this.missing() : this.inner.validate(value, siblings);
+  validate(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ValidateResult {
+    return value === undefined ? this.missing() : this.inner.validate(value, siblings, options);
   }
   validateAsync(value: Object | null | undefined,
-    siblings?: Record<string, Object>): Promise<ValidateResult> {
-    return value === undefined ? Promise.resolve(this.missing()) : this.inner.validateAsync(value, siblings);
+    siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ValidateResult> {
+    return value === undefined ? Promise.resolve(this.missing()) : this.inner.validateAsync(value, siblings, options);
   }
-  parse(value: Object | null | undefined, siblings?: Record<string, Object>): ParseResult<Object> {
+  parse(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ParseResult<Object> {
     if (value === undefined) return { success: false, errors: this.missing().errors };
-    if (this.inner.parse !== undefined) return this.inner.parse(value, siblings);
-    const checked = this.inner.validate(value, siblings);
+    if (this.inner.parse !== undefined) return this.inner.parse(value, siblings, options);
+    const checked = this.inner.validate(value, siblings, options);
     return checked.valid ? { success: true, value: value as Object, errors: [] }
       : { success: false, errors: checked.errors };
   }
   async parseAsync(value: Object | null | undefined,
-    siblings?: Record<string, Object>): Promise<ParseResult<Object>> {
+    siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ParseResult<Object>> {
     if (value === undefined) return { success: false, errors: this.missing().errors };
-    if (this.inner.parseAsync !== undefined) return this.inner.parseAsync(value, siblings);
-    const checked = await this.inner.validateAsync(value, siblings);
+    if (this.inner.parseAsync !== undefined) return this.inner.parseAsync(value, siblings, options);
+    const checked = await this.inner.validateAsync(value, siblings, options);
     return checked.valid ? { success: true, value: value as Object, errors: [] }
       : { success: false, errors: checked.errors };
   }
@@ -104,25 +107,33 @@ class JSONNonNullSchema implements AnySchema<Object> {
   private nullResult(): ValidateResult {
     return { valid: false, errors: [validationError(issue(this.errorCode))] };
   }
-  validate(value: Object | null | undefined, siblings?: Record<string, Object>): ValidateResult {
-    return value === null ? this.nullResult() : this.inner.validate(value, siblings);
+  private invalidType(value: Object | null | undefined): boolean {
+    if (value === null) return true;
+    if (value === undefined) return false;
+    if (this.errorCode === ErrorCode.TYPE_NUMBER) return typeof value !== 'number';
+    if (this.errorCode === ErrorCode.TYPE_BOOLEAN) return typeof value !== 'boolean';
+    if (this.errorCode === ErrorCode.TYPE_STRING) return typeof value !== 'string';
+    return false;
+  }
+  validate(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ValidateResult {
+    return this.invalidType(value) ? this.nullResult() : this.inner.validate(value, siblings, options);
   }
   validateAsync(value: Object | null | undefined,
-    siblings?: Record<string, Object>): Promise<ValidateResult> {
-    return value === null ? Promise.resolve(this.nullResult()) : this.inner.validateAsync(value, siblings);
+    siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ValidateResult> {
+    return this.invalidType(value) ? Promise.resolve(this.nullResult()) : this.inner.validateAsync(value, siblings, options);
   }
-  parse(value: Object | null | undefined, siblings?: Record<string, Object>): ParseResult<Object> {
-    if (value === null) return { success: false, errors: this.nullResult().errors };
-    if (this.inner.parse !== undefined) return this.inner.parse(value, siblings);
-    const checked = this.inner.validate(value, siblings);
+  parse(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ParseResult<Object> {
+    if (this.invalidType(value)) return { success: false, errors: this.nullResult().errors };
+    if (this.inner.parse !== undefined) return this.inner.parse(value, siblings, options);
+    const checked = this.inner.validate(value, siblings, options);
     return checked.valid ? { success: true, value: value as Object, errors: [] }
       : { success: false, errors: checked.errors };
   }
   async parseAsync(value: Object | null | undefined,
-    siblings?: Record<string, Object>): Promise<ParseResult<Object>> {
-    if (value === null) return { success: false, errors: this.nullResult().errors };
-    if (this.inner.parseAsync !== undefined) return this.inner.parseAsync(value, siblings);
-    const checked = await this.inner.validateAsync(value, siblings);
+    siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ParseResult<Object>> {
+    if (this.invalidType(value)) return { success: false, errors: this.nullResult().errors };
+    if (this.inner.parseAsync !== undefined) return this.inner.parseAsync(value, siblings, options);
+    const checked = await this.inner.validateAsync(value, siblings, options);
     return checked.valid ? { success: true, value: value as Object, errors: [] }
       : { success: false, errors: checked.errors };
   }
@@ -319,20 +330,20 @@ class JSONSchemaImportContext {
   }
 
   private reference(value: string): AnySchema<Object> {
+    if (value === '#') return new LazySchema<Object>((): AnySchema<Object> => this.convert(this.root));
     const prefix = '#/$defs/';
     if (!value.startsWith(prefix)) throw new Error(`Only local $defs references are supported: ${value}`);
     const definitions = this.root['$defs'] as Record<string, Object>;
     const key = value.substring(prefix.length);
     const target = definitions?.[key] as Record<string, Object>;
-    if (target === undefined) throw new Error(`JSON Schema reference not found: ${value}`);
+    if (definitions === undefined || Object.keys(definitions).indexOf(key) === -1 || target === undefined) {
+      throw new Error(`JSON Schema reference not found: ${value}`);
+    }
     return new LazySchema<Object>((): AnySchema<Object> => this.convert(target));
   }
 
   private stringSchema(node: Record<string, Object>): StringSchema {
     const schema = new StringSchema();
-    if (node['minLength'] !== undefined) schema.min(node['minLength'] as number);
-    if (node['maxLength'] !== undefined) schema.max(node['maxLength'] as number);
-    if (node['pattern'] !== undefined) schema.pattern(new RegExp(node['pattern'] as string));
     if (node['format'] !== undefined) {
       const format = node['format'] as string;
       const plugin = getStringRule(format === 'uri' ? 'url' : format);
@@ -374,8 +385,48 @@ class JSONSchemaImportContext {
     return schema;
   }
 
-  convert(node: Record<string, Object>): AnySchema<Object> {
-    if (node['$ref'] !== undefined) return this.reference(node['$ref'] as string);
+  convert(source: Record<string, Object> | boolean): AnySchema<Object> {
+    if (source === false) return new NeverSchema();
+    if (source === true) return erase<Object | null>(new AnyValueSchema());
+    const node = source as Record<string, Object>;
+    const schemas: Array<AnySchema<Object>> = [];
+    if (node['minLength'] !== undefined || node['maxLength'] !== undefined || node['pattern'] !== undefined) {
+      schemas.push(new JSONStringKeywords(node));
+    }
+    const base: Record<string, Object> = {};
+    for (const key of Object.keys(node)) {
+      if (key === 'allOf' || key === 'anyOf' || key === 'oneOf') {
+        schemas.push(new JSONApplicator(this.arrayOfSchemas(node[key]), key));
+      } else if (key === '$ref') {
+        schemas.push(this.reference(node[key] as string));
+      } else if (key === 'const' || key === 'enum') {
+        const constraint: Record<string, Object> = {};
+        constraint[key] = node[key];
+        schemas.push(this.atomic(constraint));
+      } else base[key] = node[key];
+    }
+    if (base['type'] !== undefined) schemas.push(this.atomic(base));
+    else {
+      const types = ['string', 'number', 'array', 'object'];
+      const keywords: Array<Array<string>> = [
+        ['minLength', 'maxLength', 'pattern', 'format'], ['minimum', 'maximum'],
+        ['items', 'minItems', 'maxItems'], ['properties', 'required', 'additionalProperties']
+      ];
+      for (let i = 0; i < types.length; i++) {
+        let found = false;
+        for (const key of keywords[i]) if (base[key] !== undefined) found = true;
+        if (found) {
+          const typed: Record<string, Object> = {};
+          for (const key of Object.keys(base)) typed[key] = base[key];
+          typed['type'] = types[i];
+          schemas.push(new JSONTypeGuard(this.atomic(typed), types[i]));
+        }
+      }
+    }
+    return new JSONApplicator(schemas, 'allOf');
+  }
+
+  private atomic(node: Record<string, Object>): AnySchema<Object> {
     if (node['const'] !== undefined) {
       if (node['const'] === null) return erase<null>(new NullSchema());
       return new JSONNonNullSchema(new LiteralSchema<Object>(node['const']), ErrorCode.LITERAL);
@@ -388,15 +439,6 @@ class JSONSchemaImportContext {
         ? new JSONNonNullSchema(new EnumSchema<Object>(values), ErrorCode.ENUM)
         : new EnumSchema<Object>(values);
     }
-    if (node['allOf'] !== undefined) {
-      const schemas = this.arrayOfSchemas(node['allOf']);
-      if (schemas.length === 0) return erase<Object | null>(new AnyValueSchema());
-      let result = schemas[0];
-      for (let i = 1; i < schemas.length; i++) result = new IntersectionSchema<Object>(result, schemas[i]);
-      return result;
-    }
-    const alternatives = node['anyOf'] ?? node['oneOf'];
-    if (alternatives !== undefined) return new UnionSchema<Object>(this.arrayOfSchemas(alternatives));
     const type = node['type'];
     if (type === 'string') return new JSONNonNullSchema(this.stringSchema(node) as AnySchema<Object>,
       ErrorCode.TYPE_STRING);
@@ -423,6 +465,11 @@ class JSONSchemaImportContext {
 }
 
 /** 导入常用 JSON Schema Draft 2020-12 子集；未知关键字保持宽松，不伪造业务回调。 */
-export function fromJSONSchema(source: Record<string, Object>): AnySchema<Object> {
-  return new JSONSchemaImportContext(source).convert(source);
+export function fromJSONSchema(source: Record<string, Object> | boolean, options?: JSONSchemaImportOptions): AnySchema<Object> {
+  if (options?.strict === true || options?.onDiagnostic !== undefined) {
+    const diagnostics = inspectJSONSchema(source);
+    for (const diagnostic of diagnostics) options?.onDiagnostic?.(diagnostic);
+    if (options?.strict === true && diagnostics.length > 0) throw new JSONSchemaImportError(diagnostics);
+  }
+  return new JSONSchemaImportContext(source as Record<string, Object>).convert(source);
 }

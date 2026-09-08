@@ -1,3 +1,5 @@
+import { ValidationOptions } from '../core/errors';
+import { DeepPartialContext, deepPartialSchema } from '../core/partial';
 import {
   AnySchema, ParsableSchema, ParseResult, SchemaDescriptor, SchemaMetadata, ValidateResult
 } from '../core/types';
@@ -20,6 +22,14 @@ export class DiscriminatedUnionSchema<T extends Object = Record<string, Object>>
     this.customMessage = message;
   }
   meta(value: SchemaMetadata): DiscriminatedUnionSchema<T> { this.docs.meta(value); return this; }
+  deepPartial(context: DeepPartialContext = new DeepPartialContext()): DiscriminatedUnionSchema<T> {
+    const variants: Record<string, AnySchema<T>> = {};
+    for (const key of Object.keys(this.variants)) variants[key] = deepPartialSchema(this.variants[key], context);
+    const result = new DiscriminatedUnionSchema<T>(this.discriminator, variants, this.customMessage);
+    result.docs = this.docs.copy();
+    result.fieldLabel = this.fieldLabel;
+    return result;
+  }
   describe(description: string): DiscriminatedUnionSchema<T> { this.docs.describe(description); return this; }
   describeSchema(): SchemaDescriptor {
     const result = this.docs.build('discriminated-union', true, false);
@@ -42,7 +52,7 @@ export class DiscriminatedUnionSchema<T extends Object = Record<string, Object>>
     const data = value as Record<string, Object>;
     const tag = data[this.discriminator];
     if (typeof tag !== 'string' && typeof tag !== 'number') return undefined;
-    return this.variants[`${tag}`];
+    return Object.keys(this.variants).indexOf(`${tag}`) === -1 ? undefined : this.variants[`${tag}`];
   }
   private failure(value: Object | null | undefined): ValidateResult {
     if (value !== null && value !== undefined &&
@@ -52,24 +62,24 @@ export class DiscriminatedUnionSchema<T extends Object = Record<string, Object>>
     return { valid: false, errors: [validationError(issue(ErrorCode.DISCRIMINATOR, this.customMessage,
       { 'field': this.discriminator }), this.fieldLabel, this.discriminator)] };
   }
-  validate(value: Object | null | undefined, siblings?: Record<string, Object>): ValidateResult {
+  validate(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ValidateResult {
     const selected = this.select(value);
-    return selected === undefined ? this.failure(value) : selected.validate(value, siblings);
+    return selected === undefined ? this.failure(value) : selected.validate(value, siblings, options);
   }
   async validateAsync(value: Object | null | undefined,
-    siblings?: Record<string, Object>): Promise<ValidateResult> {
+    siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ValidateResult> {
     const selected = this.select(value);
-    return selected === undefined ? this.failure(value) : selected.validateAsync(value, siblings);
+    return selected === undefined ? this.failure(value) : selected.validateAsync(value, siblings, options);
   }
-  parse(value: Object | null | undefined, siblings?: Record<string, Object>): ParseResult<T> {
+  parse(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ParseResult<T> {
     const selected = this.select(value);
     return selected === undefined ? { success: false, errors: this.failure(value).errors }
-      : parseSchema<T>(selected, value, siblings);
+      : parseSchema<T>(selected, value, siblings, options);
   }
   async parseAsync(value: Object | null | undefined,
-    siblings?: Record<string, Object>): Promise<ParseResult<T>> {
+    siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ParseResult<T>> {
     const selected = this.select(value);
     return selected === undefined ? { success: false, errors: this.failure(value).errors }
-      : parseSchemaAsync<T>(selected, value, siblings);
+      : parseSchemaAsync<T>(selected, value, siblings, options);
   }
 }

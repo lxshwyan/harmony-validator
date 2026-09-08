@@ -1,0 +1,3 @@
+{ "name": "entry", "version": "1.0.0", "dependencies": {
+  "@hmkit/validator": "file:../../validator/build/default/outputs/default/validator.har"
+} }

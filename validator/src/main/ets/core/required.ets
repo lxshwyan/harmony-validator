@@ -19,6 +19,15 @@ export class RequiredState {
   private requiredMsg?: string;
   private whenConds: RequiredWhenCond[] = [];
 
+  copy(): RequiredState {
+    const result = new RequiredState();
+    result.isRequired = this.isRequired;
+    result.isOptional = this.isOptional;
+    result.requiredMsg = this.requiredMsg;
+    result.whenConds = this.whenConds.slice();
+    return result;
+  }
+
   markRequired(message?: string): void {
     this.isRequired = true;
     this.isOptional = false;

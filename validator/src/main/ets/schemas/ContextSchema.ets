@@ -40,29 +40,33 @@ export class ContextSchema<T> implements ParsableSchema<T>, ConfigurableSchema<T
       errors: [validationError(issue(ErrorCode.CONTEXT, this.customMessage))] };
   }
   validateWithOptions(value: Object | null | undefined, options?: ValidationOptions): ValidateResult {
-    const parsed = this.withContext(parseSchema<T>(this.inner, value), options?.context);
+    const parsed = this.parse(value, undefined, options);
     return { valid: parsed.success, errors: parsed.errors };
   }
   async validateAsyncWithOptions(value: Object | null | undefined,
     options?: ValidationOptions): Promise<ValidateResult> {
-    const parsed = this.withContext(await parseSchemaAsync<T>(this.inner, value), options?.context);
+    const parsed = await this.parseAsync(value, undefined, options);
     return { valid: parsed.success, errors: parsed.errors };
   }
-  validate(value: Object | null | undefined): ValidateResult { return this.validateWithOptions(value); }
-  validateAsync(value: Object | null | undefined): Promise<ValidateResult> {
-    return this.validateAsyncWithOptions(value);
+  validate(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ValidateResult {
+    const parsed = this.parse(value, siblings, options);
+    return { valid: parsed.success, errors: parsed.errors };
   }
-  parse(value: Object | null | undefined): ParseResult<T> {
-    return this.withContext(parseSchema<T>(this.inner, value));
+  async validateAsync(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ValidateResult> {
+    const parsed = await this.parseAsync(value, siblings, options);
+    return { valid: parsed.success, errors: parsed.errors };
   }
-  async parseAsync(value: Object | null | undefined): Promise<ParseResult<T>> {
-    return this.withContext(await parseSchemaAsync<T>(this.inner, value));
+  parse(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ParseResult<T> {
+    return this.withContext(parseSchema<T>(this.inner, value, siblings, options), options?.context);
+  }
+  async parseAsync(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ParseResult<T>> {
+    return this.withContext(await parseSchemaAsync<T>(this.inner, value, siblings, options), options?.context);
   }
   parseWithContext(value: Object | null | undefined, context: Record<string, Object>): ParseResult<T> {
-    return this.withContext(parseSchema<T>(this.inner, value), context);
+    return this.parse(value, undefined, { context });
   }
   async parseAsyncWithContext(value: Object | null | undefined,
     context: Record<string, Object>): Promise<ParseResult<T>> {
-    return this.withContext(await parseSchemaAsync<T>(this.inner, value), context);
+    return this.parseAsync(value, undefined, { context });
   }
 }

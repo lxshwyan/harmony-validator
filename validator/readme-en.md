@@ -554,7 +554,7 @@ interface ParseResult<T> {
 
 ## Version
 
-Current development release: `1.1.0` (release candidate). Roadmap:
+Current development release: `1.2.0` (release candidate). Roadmap:
 
 - `0.1.0` MVP: chainable API + China-localized rules + object validation
 - `0.2.0`: array validation, async validation, deep nesting, ArkUI form binding `FormValidator`
@@ -573,8 +573,8 @@ Current development release: `1.1.0` (release candidate). Roadmap:
 ./scripts/verify.sh
 ```
 
-This installs dependencies, runs local Hypium tests, enforces coverage thresholds, builds a release HAR, and checks publishing credentials, release metadata, the public API contract, and a 128 KiB package-size budget.
-Current baseline: 232/232 tests passing; 91.18% line, 81.01% function, and 81.60% branch coverage. New tests cover recursive/intersection/conditional schemas, codecs, context, error tools, batch/cancellation, document restoration, JSON Schema import, standard-format corpora, deep recursion, and round-trip stability; all 1.0 and earlier regressions remain green. Release thresholds are 90% / 80% / 80%; reports are generated under `validator/.test/default/outputs/test/reports/`.
+This installs dependencies, runs local Hypium tests, enforces coverage thresholds, builds a release HAR, and checks publishing credentials, release metadata, the public API contract, and a 144 KiB package-size budget.
+Current baseline: 263/263 tests passing; 92.83% line, 82.67% function, and 83.86% branch coverage. Tests cover composition semantics, recursive updates, strict-import diagnostics, context isolation, object merging, concurrency, timeout/cancellation, and disposal cleanup; earlier regressions remain green. Release thresholds are 90% / 80% / 80%; reports are generated under `validator/.test/default/outputs/test/reports/`.
 
 See the full [CHANGELOG](./CHANGELOG.md).
 For upgrades from 0.x, see [Migrating to 1.0](./MIGRATION-1.0.md).
@@ -582,3 +582,34 @@ For upgrades from 0.x, see [Migrating to 1.0](./MIGRATION-1.0.md).
 ## License
 
 MIT
+
+## 1.2.0: composition fixes and execution control
+
+- JSON Schema `oneOf` requires exactly one match. Sibling constraints alongside `anyOf`, `allOf`, `$ref`, `const`, and `enum` are retained. String length keywords count Unicode code points and validate empty strings.
+- Request-local context propagates through built-in objects, arrays, records, tuples, unions, recursive schemas, and effect wrappers. Parsing accepts `parse(value, siblings?, options?)`; existing two-argument implementations remain compatible.
+- `extend()` / `merge()` clear stale object-level optional markers when replacing a field; right-hand `partial()` markers still apply.
+- `deepPartial()` traverses Object, Array, Record, Tuple, Union, Intersection, When, Lazy, discriminated unions, and nullable/default/transform wrappers, preserving constraints, metadata, callbacks, and original schemas. Lazy uses a per-conversion cache for recursive edges; discriminated unions still require a valid tag. When predicates receive per-call ValidationOptions as their third argument. Third-party `DeepPartialSchema<T>` implementations may forward the conversion context; unsupported wrappers stay unchanged. Cyclic input objects are not supported.
+- New `interop`, `execution`, `composition`, and `form` subpaths under `@hmkit/validator/` preserve existing main exports. They do not auto-register format plugins; register required plugins before importing documents with formats.
+
+```typescript
+import { liteV } from '@hmkit/validator/lite';
+import { validateBatchAsync } from '@hmkit/validator/execution';
+
+const results = await validateBatchAsync(liteV.string().required(), ['Alice', '', 'Bob'], {
+  concurrency: 2,
+  timeoutMs: 3000
+});
+// Results follow input order; results[1].valid is false.
+```
+
+`concurrency` defaults to 1 and must be a positive integer. It bounds batch items, not the parallel fields inside one object. Optional `timeoutMs` must be finite and positive and applies per item. A timeout returns code `timeout`; the batch stops scheduling new items and collects started results, so results may be a prefix of the input. It does not abort an underlying network request; cancellation remains the caller's responsibility. Third-party schema exceptions propagate and stop further scheduling. Existing `abortEarly` / `maxErrors` truncate returned errors and do not promise early termination of rule execution.
+
+JSON Schema import remains a practical subset: basic single types, string constraints, numeric minimum/maximum/integer, array items/minItems/maxItems, object properties/required/boolean extra-key policy, composition, and local references. Unknown keywords remain permissive. This is not a full Draft 2020-12 compliance engine; lossless re-export of imported schemas is not guaranteed.
+
+Use `fromJSONSchema(source, { strict: true })` to reject unsupported capabilities, or import `inspectJSONSchema(source)` from `interop` for JSON Pointer diagnostics. Permissive imports can report through `onDiagnostic`. Boolean schemas are supported. Strict preflight is not complete meta-schema validation.
+
+String/Number `customAsync((value, options?) => Promise<boolean>, message)` callbacks can subscribe/unsubscribe through `options.cancellation.onCancel()`. Execution uses independent child tokens; timeouts notify the child without cancelling the shared parent. Network adapters must actively respond and release their subscriptions. Cancel page-owned tokens and call `form.dispose()` on exit; disposed forms no longer dispatch dependent checks after pending debounce events.
+
+See repository files `doc/ADVANCED-1.2.0.md` and `doc/ADVANCED-1.2.0-en.md` for full examples and acceptance steps. `scripts/consumer-scenarios.ets` provides compiled recursive updates, dynamic forms, mock remote checks, and optional imports. Timer-based request mocks do not replace real-network acceptance.
+
+The release gate includes an independent API 12 consumer. Run `bash scripts/verify-consumer.sh` to verify installed HAR bytecode and compile both main and optional-entry HAPs. Subpaths do not guarantee smaller HARs or HAPs; use actual toolchain measurements. The expanded 1.2 HAR ceiling changes from 144 to 160 KiB for recursion, diagnostics, cancellation notifications, and bilingual docs. This accommodates feature growth, not a size optimization; the size gate remains enforced.

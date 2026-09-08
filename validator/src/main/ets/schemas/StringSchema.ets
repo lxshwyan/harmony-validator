@@ -1,5 +1,6 @@
 import { ParsableSchema, ParseResult, SchemaDescriptor, SchemaMetadata, ValidateError, ValidateResult } from '../core/types';
 import { SchemaDocs } from '../core/schema';
+import { ValidationOptions, applyValidationOptions } from '../core/errors';
 import { RequiredState } from '../core/required';
 import { ErrorCode, issue, RuleIssue, validationError } from '../core/i18n';
 import { DefaultSchema, NullableSchema, TransformSchema } from './EffectSchemas';
@@ -10,7 +11,7 @@ import {
 /** 单条字符串校验规则：返回 null 表示通过，返回字符串表示错误提示。 */
 type StringRule = (value: string) => RuleIssue | null;
 /** 单条异步字符串校验规则：返回 null 表示通过，返回字符串表示错误提示。 */
-type StringAsyncRule = (value: string) => Promise<RuleIssue | null>;
+type StringAsyncRule = (value: string, options?: ValidationOptions) => Promise<RuleIssue | null>;
 
 /** 字符串校验器，支持链式调用。 */
 export class StringSchema implements ParsableSchema<string> {
@@ -125,11 +126,11 @@ export class StringSchema implements ParsableSchema<string> {
    * 典型场景：远程查重（如用户名/手机号是否已注册）。
    * 仅在调用 validateAsync 时生效；同步 validate 会忽略异步规则。
    */
-  customAsync(fn: (value: string) => Promise<boolean>, message: string): StringSchema {
+  customAsync(fn: (value: string, options?: ValidationOptions) => Promise<boolean>, message: string): StringSchema {
     this.docs.rule('custom', undefined, 'asynchronous predicate', true, false);
-    this.asyncRules.push(async (value: string): Promise<RuleIssue | null> => {
+    this.asyncRules.push(async (value: string, options?: ValidationOptions): Promise<RuleIssue | null> => {
       try {
-        return (await fn(value)) ? null : issue(ErrorCode.CUSTOM, message);
+        return (await fn(value, options)) ? null : issue(ErrorCode.CUSTOM, message);
       } catch (e) {
         return issue(ErrorCode.CUSTOM, message);
       }
@@ -267,7 +268,7 @@ export class StringSchema implements ParsableSchema<string> {
   }
 
   /** 异步校验：先跑同步规则，再跑异步规则（如远程查重）。 */
-  async validateAsync(value: Object | null | undefined, siblings?: Record<string, Object>): Promise<ValidateResult> {
+  async validateAsync(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ValidateResult> {
     const base = this.validate(value, siblings);
     // 同步规则未通过则短路，不浪费异步规则（如一次远程查重请求）
     if (!base.valid) {
@@ -279,13 +280,14 @@ export class StringSchema implements ParsableSchema<string> {
     if (!isEmpty && typeof value === 'string' && this.asyncRules.length > 0) {
       const str = value as string;
       for (const rule of this.asyncRules) {
-        const currentIssue = await rule(str);
+        if (options?.cancellation?.isCancelled() === true) return applyValidationOptions(base, options);
+        const currentIssue = await rule(str, options);
         if (currentIssue !== null) {
           errors.push(validationError(currentIssue, this.fieldLabel));
         }
       }
     }
-    return { valid: errors.length === 0, errors };
+    return applyValidationOptions({ valid: errors.length === 0, errors }, options);
   }
 
   parse(value: Object | null | undefined, siblings?: Record<string, Object>): ParseResult<string> {
@@ -295,8 +297,8 @@ export class StringSchema implements ParsableSchema<string> {
   }
 
   async parseAsync(value: Object | null | undefined,
-    siblings?: Record<string, Object>): Promise<ParseResult<string>> {
-    const result = await this.validateAsync(value, siblings);
+    siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ParseResult<string>> {
+    const result = await this.validateAsync(value, siblings, options);
     return result.valid ? { success: true, value: value as string, errors: [] }
       : { success: false, errors: result.errors };
   }

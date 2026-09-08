@@ -1,5 +1,6 @@
 // OHPM 包对外入口（oh-package.json5 的 main 指向这里）。
 export { v } from './src/main/ets/index';
+export { DeepPartialSchema, deepPartialSchema } from './src/main/ets/core/partial';
 export { StringSchema } from './src/main/ets/schemas/StringSchema';
 export { NumberSchema } from './src/main/ets/schemas/NumberSchema';
 export { ObjectSchema, SchemaShape } from './src/main/ets/schemas/ObjectSchema';

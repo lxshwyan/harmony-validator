@@ -1,11 +1,12 @@
 import { ParsableSchema, ParseResult, SchemaDescriptor, SchemaMetadata, ValidateError, ValidateResult } from '../core/types';
 import { SchemaDocs } from '../core/schema';
+import { ValidationOptions, applyValidationOptions } from '../core/errors';
 import { RequiredState } from '../core/required';
 import { ErrorCode, issue, RuleIssue, validationError } from '../core/i18n';
 import { DefaultSchema, NullableSchema, TransformSchema } from './EffectSchemas';
 
 type NumberRule = (value: number) => RuleIssue | null;
-type NumberAsyncRule = (value: number) => Promise<RuleIssue | null>;
+type NumberAsyncRule = (value: number, options?: ValidationOptions) => Promise<RuleIssue | null>;
 
 /** 数字校验器，支持链式调用。 */
 export class NumberSchema implements ParsableSchema<number> {
@@ -104,11 +105,11 @@ export class NumberSchema implements ParsableSchema<number> {
   }
 
   /** 自定义异步规则。返回 Promise<true> 通过。仅 validateAsync 时生效。 */
-  customAsync(fn: (value: number) => Promise<boolean>, message: string): NumberSchema {
+  customAsync(fn: (value: number, options?: ValidationOptions) => Promise<boolean>, message: string): NumberSchema {
     this.docs.rule('custom', undefined, 'asynchronous predicate', true, false);
-    this.asyncRules.push(async (v: number): Promise<RuleIssue | null> => {
+    this.asyncRules.push(async (v: number, options?: ValidationOptions): Promise<RuleIssue | null> => {
       try {
-        return (await fn(v)) ? null : issue(ErrorCode.CUSTOM, message);
+        return (await fn(v, options)) ? null : issue(ErrorCode.CUSTOM, message);
       } catch (e) {
         return issue(ErrorCode.CUSTOM, message);
       }
@@ -143,7 +144,7 @@ export class NumberSchema implements ParsableSchema<number> {
   }
 
   /** 异步校验：先跑同步规则，再跑异步规则。 */
-  async validateAsync(value: Object | null | undefined, siblings?: Record<string, Object>): Promise<ValidateResult> {
+  async validateAsync(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ValidateResult> {
     const base = this.validate(value, siblings);
     // 同步规则未通过则短路
     if (!base.valid) {
@@ -154,13 +155,14 @@ export class NumberSchema implements ParsableSchema<number> {
       && Number.isFinite(value as number) && this.asyncRules.length > 0) {
       const num = value as number;
       for (const rule of this.asyncRules) {
-        const currentIssue = await rule(num);
+        if (options?.cancellation?.isCancelled() === true) return applyValidationOptions(base, options);
+        const currentIssue = await rule(num, options);
         if (currentIssue !== null) {
           errors.push(validationError(currentIssue, this.fieldLabel));
         }
       }
     }
-    return { valid: errors.length === 0, errors };
+    return applyValidationOptions({ valid: errors.length === 0, errors }, options);
   }
 
   parse(value: Object | null | undefined, siblings?: Record<string, Object>): ParseResult<number> {
@@ -170,8 +172,8 @@ export class NumberSchema implements ParsableSchema<number> {
   }
 
   async parseAsync(value: Object | null | undefined,
-    siblings?: Record<string, Object>): Promise<ParseResult<number>> {
-    const result = await this.validateAsync(value, siblings);
+    siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ParseResult<number>> {
+    const result = await this.validateAsync(value, siblings, options);
     return result.valid ? { success: true, value: value as number, errors: [] }
       : { success: false, errors: result.errors };
   }

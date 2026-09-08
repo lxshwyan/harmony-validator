@@ -1,11 +1,15 @@
 {
   "name": "@hmkit/validator",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "鸿蒙 ArkTS Schema 与表单校验库，支持递归组合、Codec、JSON Schema 双向转换、业务上下文和模块化规则",
   "main": "Index.ets",
   "oh-exports": [
     "Index.ets",
     "lite.ets",
+    "interop.ets",
+    "execution.ets",
+    "composition.ets",
+    "form.ets",
     "rules"
   ],
   "author": {

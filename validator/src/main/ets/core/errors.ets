@@ -9,8 +9,12 @@ export interface ValidationOptions {
   maxErrors?: number;
   /** 供 ContextSchema 等扩展读取的业务上下文。 */
   context?: Record<string, Object>;
-  /** 异步任务开始前或完成后检查的协作式取消令牌。 */
+  /** Cooperative cancellation; onCancel lets custom rules release their own resources. */
   cancellation?: ValidationCancellationToken;
+  /** Async batch worker count, default 1. Must be a positive integer. */
+  concurrency?: number;
+  /** Per-item deadline; notifies cooperative custom rules but cannot force an external request to stop. */
+  timeoutMs?: number;
 }
 
 export interface ConfigurableSchema<T> extends AnySchema<T> {
@@ -21,7 +25,28 @@ export interface ConfigurableSchema<T> extends AnySchema<T> {
 /** 不依赖系统 AbortSignal，可在 ArkTS、Worker 与测试环境复用。 */
 export class ValidationCancellationToken {
   private cancelledValue: boolean = false;
-  cancel(): void { this.cancelledValue = true; }
+  private listeners: Array<() => void> = [];
+  cancel(): void {
+    if (this.cancelledValue) return;
+    this.cancelledValue = true;
+    const listeners = this.listeners.slice();
+    this.listeners = [];
+    for (const listener of listeners) {
+      try { listener(); } catch (_error) { /* One resource cleanup must not prevent others. */ }
+    }
+  }
+  /** Returns an idempotent unsubscribe function; late subscribers are notified immediately. */
+  onCancel(listener: () => void): () => void {
+    if (this.cancelledValue) {
+      try { listener(); } catch (_error) { /* Same isolation as cancel(). */ }
+      return (): void => {};
+    }
+    this.listeners.push(listener);
+    return (): void => {
+      const index = this.listeners.indexOf(listener);
+      if (index !== -1) this.listeners.splice(index, 1);
+    };
+  }
   isCancelled(): boolean { return this.cancelledValue; }
 }
 
@@ -71,7 +96,9 @@ export function applyValidationOptions(result: ValidateResult, options?: Validat
   if (result.valid) return { valid: true, errors: [] };
   let limit = result.errors.length;
   if (options?.abortEarly === true) limit = 1;
-  if (options?.maxErrors !== undefined) limit = Math.min(limit, Math.max(1, options.maxErrors));
+  if (options?.maxErrors !== undefined && Number.isFinite(options.maxErrors)) {
+    limit = Math.min(limit, Math.max(1, Math.floor(options.maxErrors)));
+  }
   return { valid: false, errors: result.errors.slice(0, limit) };
 }
 
@@ -80,7 +107,7 @@ export function validateValue<T>(schema: AnySchema<T>, value: Object | null | un
   options?: ValidationOptions): ValidateResult {
   if (options?.cancellation?.isCancelled() === true) return cancelledResult();
   const configurable = schema as ConfigurableSchema<T>;
-  const result = configurable.validateWithOptions === undefined ? schema.validate(value)
+  const result = configurable.validateWithOptions === undefined ? schema.validate(value, undefined, options)
     : configurable.validateWithOptions(value, options);
   return applyValidationOptions(result, options);
 }
@@ -89,9 +116,42 @@ export function validateValue<T>(schema: AnySchema<T>, value: Object | null | un
 export async function validateValueAsync<T>(schema: AnySchema<T>, value: Object | null | undefined,
   options?: ValidationOptions): Promise<ValidateResult> {
   if (options?.cancellation?.isCancelled() === true) return cancelledResult();
-  const configurable = schema as ConfigurableSchema<T>;
-  const result = configurable.validateAsyncWithOptions === undefined ? await schema.validateAsync(value)
-    : await configurable.validateAsyncWithOptions(value, options);
+  const timeout = options?.timeoutMs;
+  if (timeout !== undefined && (!Number.isFinite(timeout) || timeout <= 0)) {
+    throw new RangeError('timeoutMs must be finite and positive');
+  }
+  const localToken = new ValidationCancellationToken();
+  const unlink = options?.cancellation?.onCancel((): void => localToken.cancel());
+  const localOptions: ValidationOptions = {
+    abortEarly: options?.abortEarly, maxErrors: options?.maxErrors, context: options?.context,
+    cancellation: localToken, concurrency: options?.concurrency, timeoutMs: timeout
+  };
+  let unsubscribe: (() => void) | undefined;
+  const cancelled = new Promise<ValidateResult>((resolve): void => {
+    unsubscribe = localToken.onCancel((): void => resolve(cancelledResult()));
+  });
+  let timer: number | undefined;
+  let result: ValidateResult;
+  try {
+    const configurable = schema as ConfigurableSchema<T>;
+    const task = configurable.validateAsyncWithOptions === undefined ? schema.validateAsync(value, undefined, localOptions)
+      : configurable.validateAsyncWithOptions(value, localOptions);
+    const tasks: Array<Promise<ValidateResult>> = [task, cancelled];
+    if (timeout !== undefined) tasks.push(new Promise<ValidateResult>((resolve): void => {
+        timer = setTimeout((): void => {
+          resolve({ valid: false, errors: [validationError(issue(ErrorCode.TIMEOUT))] });
+          localToken.cancel();
+        }, timeout);
+      }));
+    result = await Promise.race(tasks);
+  } catch (error) {
+    localToken.cancel();
+    throw error as Error;
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+    unsubscribe?.();
+    unlink?.();
+  }
   return applyValidationOptions(result, options);
 }
 
@@ -107,10 +167,27 @@ export function validateBatch<T>(schema: AnySchema<T>, values: Array<Object>,
 
 export async function validateBatchAsync<T>(schema: AnySchema<T>, values: Array<Object>,
   options?: ValidationOptions): Promise<Array<ValidateResult>> {
-  const results: Array<ValidateResult> = [];
-  for (const value of values) {
-    results.push(await validateValueAsync(schema, value, options));
-    if (options?.cancellation?.isCancelled() === true) break;
+  const concurrency = options?.concurrency ?? 1;
+  if (!Number.isInteger(concurrency) || concurrency < 1) {
+    throw new RangeError('concurrency must be a positive integer');
   }
+  const results: Array<ValidateResult> = [];
+  let next = 0;
+  let stopped = false;
+  const worker = async (): Promise<void> => {
+    while (!stopped && next < values.length) {
+      const index = next++;
+      let result: ValidateResult;
+      try { result = await validateValueAsync(schema, values[index], options); }
+      catch (error) { stopped = true; throw error as Error; }
+      results[index] = result;
+      // A timed-out task may still be running: do not schedule more remote work.
+      if (options?.cancellation?.isCancelled() === true || result.errors.some(
+        (error: ValidateError): boolean => error.code === 'timeout')) stopped = true;
+    }
+  };
+  const workers: Array<Promise<void>> = [];
+  for (let i = 0; i < Math.min(concurrency, values.length); i++) workers.push(worker());
+  await Promise.all(workers);
   return results;
 }

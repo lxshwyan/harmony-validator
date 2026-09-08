@@ -5,7 +5,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 HAR="${1:-${PROJECT_DIR}/validator/build/default/outputs/default/validator.har}"
-MAX_BYTES="${HMKIT_MAX_HAR_BYTES:-131072}"
+# 1.2 expanded scope: reviewed 160 KiB ceiling including recursive updates,
+# strict import diagnostics, cancellation notifications and bilingual docs.
+# Compare actual consumer HAPs with verify-consumer.sh; subpaths alone do not shrink a HAR.
+MAX_BYTES="${HMKIT_MAX_HAR_BYTES:-163840}"
 
 if [[ ! -f "${HAR}" ]]; then
   echo "HAR not found: ${HAR}" >&2

@@ -1,3 +1,5 @@
+import { ValidationOptions } from '../core/errors';
+import { DeepPartialContext, deepPartialSchema } from '../core/partial';
 import {
   AnySchema, ParsableSchema, ParseResult, SchemaDescriptor, SchemaMetadata, ValidateError, ValidateResult
 } from '../core/types';
@@ -144,7 +146,9 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
     const shape: SchemaShape = {};
     for (const key of Object.keys(this.shape)) shape[key] = this.shape[key];
     for (const key of Object.keys(additions)) shape[key] = additions[key];
-    return this.copyWithShape(shape);
+    const result = this.copyWithShape(shape);
+    result.optionalKeys = result.optionalKeys.filter((key: string): boolean => additions[key] === undefined);
+    return result;
   }
 
   /** 合并另一个对象 Schema；同名字段以 other 为准。 */
@@ -157,13 +161,15 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
   }
 
   /** 深层对象字段可选；不修改原对象及其子 Schema。 */
-  deepPartial(): ObjectSchema<T> {
+  deepPartial(context: DeepPartialContext = new DeepPartialContext()): ObjectSchema<T> {
     const shape: SchemaShape = {};
     for (const key of Object.keys(this.shape)) {
       const child = this.shape[key];
-      shape[key] = child instanceof ObjectSchema ? (child as ObjectSchema).deepPartial() : child;
+      shape[key] = deepPartialSchema(child, context);
     }
-    return this.copyWithShape(shape).partial();
+    const result = this.copyWithShape(shape).partial();
+    context.remember(this, result);
+    return result;
   }
 
   /**
@@ -220,7 +226,7 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
     }
   }
 
-  validate(value: Object | null | undefined, siblings?: Record<string, Object>): ValidateResult {
+  validate(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ValidateResult {
     if (value === null || value === undefined) {
       return this.emptyResult();
     }
@@ -234,7 +240,7 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
       if (this.isFieldOptional(key, data)) continue;
       const fieldSchema = this.shape[key];
       // 把当前对象作为 siblings 传下去，供字段的 requiredWhen 读取兄弟字段
-      const result = fieldSchema.validate(data[key], data);
+      const result = fieldSchema.validate(data[key], data, options);
       if (!result.valid) {
         for (const e of result.errors) {
           const path = e.path === '' ? key : `${key}.${e.path}`;
@@ -248,7 +254,7 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
   }
 
   /** 异步逐字段校验：对每个字段调用其 validateAsync，路径拼接规则同 validate。 */
-  async validateAsync(value: Object | null | undefined, siblings?: Record<string, Object>): Promise<ValidateResult> {
+  async validateAsync(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ValidateResult> {
     if (value === null || value === undefined) {
       return this.emptyResult();
     }
@@ -263,7 +269,7 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
     for (const key of keys) {
       if (!this.isFieldOptional(key, data)) {
         activeKeys.push(key);
-        tasks.push(this.shape[key].validateAsync(data[key], data));
+        tasks.push(this.shape[key].validateAsync(data[key], data, options));
       }
     }
     const results = await Promise.all(tasks);
@@ -282,7 +288,7 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
     return { valid: errors.length === 0, errors };
   }
 
-  parse(value: Object | null | undefined, siblings?: Record<string, Object>): ParseResult<T> {
+  parse(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ParseResult<T> {
     if (value === null || value === undefined) {
       const empty = this.emptyResult();
       return empty.valid ? { success: true, errors: [] } : { success: false, errors: empty.errors };
@@ -301,7 +307,7 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
     }
     for (const key of Object.keys(this.shape)) {
       if (this.isFieldOptional(key, data)) continue;
-      const parsed = parseSchema(this.shape[key], data[key], data);
+      const parsed = parseSchema(this.shape[key], data[key], data, options);
       if (!parsed.success) {
         for (const error of parsed.errors) {
           const path = error.path === '' ? key : `${key}.${error.path}`;
@@ -321,7 +327,7 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
   }
 
   async parseAsync(value: Object | null | undefined,
-    siblings?: Record<string, Object>): Promise<ParseResult<T>> {
+    siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ParseResult<T>> {
     if (value === null || value === undefined) {
       const empty = this.emptyResult();
       return empty.valid ? { success: true, errors: [] } : { success: false, errors: empty.errors };
@@ -344,7 +350,7 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
     for (const key of keys) {
       if (!this.isFieldOptional(key, data)) {
         activeKeys.push(key);
-        tasks.push(parseSchemaAsync<Object>(this.shape[key], data[key], data));
+        tasks.push(parseSchemaAsync<Object>(this.shape[key], data[key], data, options));
       }
     }
     const results = await Promise.all(tasks);

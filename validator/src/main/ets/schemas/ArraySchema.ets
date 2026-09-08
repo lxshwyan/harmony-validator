@@ -1,3 +1,5 @@
+import { DeepPartialContext, deepPartialSchema } from '../core/partial';
+import { ValidationOptions } from '../core/errors';
 import {
   AnySchema, ParsableSchema, ParseResult, SchemaDescriptor, SchemaMetadata, ValidateError, ValidateResult
 } from '../core/types';
@@ -25,6 +27,16 @@ export class ArraySchema<T extends Object = Object> implements ParsableSchema<Ar
 
   constructor(element: AnySchema<T>) {
     this.element = element;
+  }
+
+  /** Copies the container and recursively makes contained object fields optional. */
+  deepPartial(context: DeepPartialContext = new DeepPartialContext()): ArraySchema<T> {
+    const result = new ArraySchema<T>(deepPartialSchema(this.element, context));
+    result.rules = this.rules.slice();
+    result.req = this.req.copy();
+    result.fieldLabel = this.fieldLabel;
+    result.docs = this.docs.copy();
+    return result;
   }
 
   meta(value: SchemaMetadata): ArraySchema<T> { this.docs.meta(value); return this; }
@@ -97,7 +109,7 @@ export class ArraySchema<T extends Object = Object> implements ParsableSchema<Ar
     return this;
   }
 
-  validate(value: Object | null | undefined, siblings?: Record<string, Object>): ValidateResult {
+  validate(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ValidateResult {
     const errors: ValidateError[] = [];
     if (value === null || value === undefined) {
       const reqError = this.req.error(siblings, this.fieldLabel);
@@ -119,7 +131,7 @@ export class ArraySchema<T extends Object = Object> implements ParsableSchema<Ar
     }
     // 逐元素校验，路径加下标前缀
     for (let i = 0; i < arr.length; i++) {
-      const result = this.element.validate(arr[i]);
+      const result = this.element.validate(arr[i], undefined, options);
       if (!result.valid) {
         for (const e of result.errors) {
           const path = e.path === '' ? `${i}` : `${i}.${e.path}`;
@@ -131,7 +143,7 @@ export class ArraySchema<T extends Object = Object> implements ParsableSchema<Ar
   }
 
   /** 异步逐元素校验：对每个元素调用其 validateAsync，路径规则同 validate。 */
-  async validateAsync(value: Object | null | undefined, siblings?: Record<string, Object>): Promise<ValidateResult> {
+  async validateAsync(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ValidateResult> {
     const errors: ValidateError[] = [];
     if (value === null || value === undefined) {
       const reqError = this.req.error(siblings, this.fieldLabel);
@@ -151,7 +163,7 @@ export class ArraySchema<T extends Object = Object> implements ParsableSchema<Ar
       }
     }
     for (let i = 0; i < arr.length; i++) {
-      const result = await this.element.validateAsync(arr[i]);
+      const result = await this.element.validateAsync(arr[i], undefined, options);
       if (!result.valid) {
         for (const e of result.errors) {
           const path = e.path === '' ? `${i}` : `${i}.${e.path}`;
@@ -162,7 +174,7 @@ export class ArraySchema<T extends Object = Object> implements ParsableSchema<Ar
     return { valid: errors.length === 0, errors };
   }
 
-  parse(value: Object | null | undefined, siblings?: Record<string, Object>): ParseResult<Array<T>> {
+  parse(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ParseResult<Array<T>> {
     const errors: ValidateError[] = [];
     if (value === null || value === undefined) {
       const required = this.req.error(siblings, this.fieldLabel);
@@ -184,7 +196,7 @@ export class ArraySchema<T extends Object = Object> implements ParsableSchema<Ar
     }
     const output: Array<T> = [];
     for (let i = 0; i < source.length; i++) {
-      const parsed = parseSchema<T>(this.element, source[i]);
+      const parsed = parseSchema<T>(this.element, source[i], undefined, options);
       if (!parsed.success) {
         for (const error of parsed.errors) {
           const path = error.path === '' ? `${i}` : `${i}.${error.path}`;
@@ -201,7 +213,7 @@ export class ArraySchema<T extends Object = Object> implements ParsableSchema<Ar
   }
 
   async parseAsync(value: Object | null | undefined,
-    siblings?: Record<string, Object>): Promise<ParseResult<Array<T>>> {
+    siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ParseResult<Array<T>>> {
     const errors: ValidateError[] = [];
     if (value === null || value === undefined) {
       const required = this.req.error(siblings, this.fieldLabel);
@@ -223,7 +235,7 @@ export class ArraySchema<T extends Object = Object> implements ParsableSchema<Ar
     }
     const output: Array<T> = [];
     for (let i = 0; i < source.length; i++) {
-      const parsed = await parseSchemaAsync<T>(this.element, source[i]);
+      const parsed = await parseSchemaAsync<T>(this.element, source[i], undefined, options);
       if (!parsed.success) {
         for (const error of parsed.errors) {
           const path = error.path === '' ? `${i}` : `${i}.${error.path}`;

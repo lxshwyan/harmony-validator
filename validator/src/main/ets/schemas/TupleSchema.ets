@@ -1,3 +1,5 @@
+import { DeepPartialContext, deepPartialSchema } from '../core/partial';
+import { ValidationOptions } from '../core/errors';
 import {
   AnySchema, ParsableSchema, ParseResult, SchemaDescriptor, SchemaMetadata, ValidateError, ValidateResult
 } from '../core/types';
@@ -15,6 +17,15 @@ export class TupleSchema implements ParsableSchema<Array<Object>> {
   private docs: SchemaDocs = new SchemaDocs();
 
   constructor(items: Array<AnySchema>, message?: string) { this.items = items.slice(); this.customMessage = message; }
+  /** Copies the container and recursively makes contained object fields optional. */
+  deepPartial(context: DeepPartialContext = new DeepPartialContext()): TupleSchema {
+    const result = new TupleSchema(this.items.map((item: AnySchema): AnySchema => deepPartialSchema(item, context)), this.customMessage);
+    result.isOptional = this.isOptional;
+    result.fieldLabel = this.fieldLabel;
+    result.docs = this.docs.copy();
+    return result;
+  }
+
   meta(value: SchemaMetadata): TupleSchema { this.docs.meta(value); return this; }
   describe(description: string): TupleSchema { this.docs.describe(description); return this; }
   describeSchema(): SchemaDescriptor {
@@ -42,13 +53,13 @@ export class TupleSchema implements ParsableSchema<Array<Object>> {
       this.customMessage, { 'length': `${this.items.length}` }), this.fieldLabel)];
     return [];
   }
-  validate(value: Object | null | undefined): ValidateResult {
+  validate(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ValidateResult {
     if (value === null || value === undefined) return this.emptyResult();
     const errors = this.baseErrors(value);
     if (errors.length > 0) return { valid: false, errors };
     const source = value as Array<Object>;
     for (let i = 0; i < this.items.length; i++) {
-      const result = this.items[i].validate(source[i]);
+      const result = this.items[i].validate(source[i], undefined, options);
       for (const error of result.errors) {
         const path = error.path === '' ? `${i}` : `${i}.${error.path}`;
         errors.push({ path, message: error.message, code: error.code });
@@ -56,13 +67,13 @@ export class TupleSchema implements ParsableSchema<Array<Object>> {
     }
     return { valid: errors.length === 0, errors };
   }
-  async validateAsync(value: Object | null | undefined): Promise<ValidateResult> {
+  async validateAsync(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ValidateResult> {
     if (value === null || value === undefined) return this.emptyResult();
     const errors = this.baseErrors(value);
     if (errors.length > 0) return { valid: false, errors };
     const source = value as Array<Object>;
     const tasks: Array<Promise<ValidateResult>> = [];
-    for (let i = 0; i < this.items.length; i++) tasks.push(this.items[i].validateAsync(source[i]));
+    for (let i = 0; i < this.items.length; i++) tasks.push(this.items[i].validateAsync(source[i], undefined, options));
     const results = await Promise.all(tasks);
     for (let i = 0; i < results.length; i++) {
       for (const error of results[i].errors) {
@@ -72,7 +83,7 @@ export class TupleSchema implements ParsableSchema<Array<Object>> {
     }
     return { valid: errors.length === 0, errors };
   }
-  parse(value: Object | null | undefined): ParseResult<Array<Object>> {
+  parse(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ParseResult<Array<Object>> {
     if (value === null || value === undefined) {
       const result = this.emptyResult();
       return result.valid ? { success: true, errors: [] } : { success: false, errors: result.errors };
@@ -82,7 +93,7 @@ export class TupleSchema implements ParsableSchema<Array<Object>> {
     const source = value as Array<Object>;
     const output: Array<Object> = [];
     for (let i = 0; i < this.items.length; i++) {
-      const parsed = parseSchema(this.items[i], source[i]);
+      const parsed = parseSchema(this.items[i], source[i], undefined, options);
       if (parsed.success) output.push(parsed.value === undefined ? source[i] : parsed.value as Object);
       else for (const error of parsed.errors) {
         const path = error.path === '' ? `${i}` : `${i}.${error.path}`;
@@ -91,7 +102,7 @@ export class TupleSchema implements ParsableSchema<Array<Object>> {
     }
     return errors.length === 0 ? { success: true, value: output, errors: [] } : { success: false, errors };
   }
-  async parseAsync(value: Object | null | undefined): Promise<ParseResult<Array<Object>>> {
+  async parseAsync(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ParseResult<Array<Object>>> {
     if (value === null || value === undefined) {
       const result = this.emptyResult();
       return result.valid ? { success: true, errors: [] } : { success: false, errors: result.errors };
@@ -100,7 +111,7 @@ export class TupleSchema implements ParsableSchema<Array<Object>> {
     if (errors.length > 0) return { success: false, errors };
     const source = value as Array<Object>;
     const tasks: Array<Promise<ParseResult<Object>>> = [];
-    for (let i = 0; i < this.items.length; i++) tasks.push(parseSchemaAsync<Object>(this.items[i], source[i]));
+    for (let i = 0; i < this.items.length; i++) tasks.push(parseSchemaAsync<Object>(this.items[i], source[i], undefined, options));
     const results = await Promise.all(tasks);
     const output: Array<Object> = [];
     for (let i = 0; i < results.length; i++) {

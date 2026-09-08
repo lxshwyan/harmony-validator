@@ -1,3 +1,5 @@
+import { DeepPartialContext, deepPartialSchema } from '../core/partial';
+import { ValidationOptions } from '../core/errors';
 import {
   AnySchema, ParsableSchema, ParseResult, SchemaDescriptor, SchemaMetadata, ValidateError, ValidateResult
 } from '../core/types';
@@ -6,11 +8,11 @@ import { ErrorCode, issue, ValidatorI18n, validationError } from '../core/i18n';
 
 /** 对任意 Schema 执行解析；第三方旧 Schema 没有 parse 时回退为“校验后返回原值”。 */
 export function parseSchema<T>(schema: AnySchema<T>, value: Object | null | undefined,
-  siblings?: Record<string, Object>): ParseResult<T> {
+  siblings?: Record<string, Object>, options?: ValidationOptions): ParseResult<T> {
   if (schema.parse !== undefined) {
-    return schema.parse(value, siblings);
+    return schema.parse(value, siblings, options);
   }
-  const result = schema.validate(value, siblings);
+  const result = schema.validate(value, siblings, options);
   if (!result.valid) {
     return { success: false, errors: result.errors };
   }
@@ -18,11 +20,11 @@ export function parseSchema<T>(schema: AnySchema<T>, value: Object | null | unde
 }
 
 export async function parseSchemaAsync<T>(schema: AnySchema<T>, value: Object | null | undefined,
-  siblings?: Record<string, Object>): Promise<ParseResult<T>> {
+  siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ParseResult<T>> {
   if (schema.parseAsync !== undefined) {
-    return schema.parseAsync(value, siblings);
+    return schema.parseAsync(value, siblings, options);
   }
-  const result = await schema.validateAsync(value, siblings);
+  const result = await schema.validateAsync(value, siblings, options);
   if (!result.valid) {
     return { success: false, errors: result.errors };
   }
@@ -52,6 +54,13 @@ export class NullableSchema<T> implements ParsableSchema<T | null> {
     this.inner = inner;
   }
 
+  deepPartial(context: DeepPartialContext = new DeepPartialContext()): NullableSchema<T> {
+    const result = new NullableSchema<T>(deepPartialSchema(this.inner, context));
+    result.fieldLabel = this.fieldLabel;
+    result.docs = this.docs.copy();
+    return result;
+  }
+
   meta(value: SchemaMetadata): NullableSchema<T> { this.docs.meta(value); return this; }
   describe(description: string): NullableSchema<T> { this.docs.describe(description); return this; }
   describeSchema(): SchemaDescriptor {
@@ -79,37 +88,37 @@ export class NullableSchema<T> implements ParsableSchema<T | null> {
     return new TransformSchema<T | null, U>(this, fn, message);
   }
 
-  validate(value: Object | null | undefined, siblings?: Record<string, Object>): ValidateResult {
+  validate(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ValidateResult {
     if (value === null) {
       return { valid: true, errors: [] };
     }
-    const result = this.inner.validate(value, siblings);
+    const result = this.inner.validate(value, siblings, options);
     return { valid: result.valid, errors: withLabel(result.errors, this.fieldLabel) };
   }
 
   async validateAsync(value: Object | null | undefined,
-    siblings?: Record<string, Object>): Promise<ValidateResult> {
+    siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ValidateResult> {
     if (value === null) {
       return { valid: true, errors: [] };
     }
-    const result = await this.inner.validateAsync(value, siblings);
+    const result = await this.inner.validateAsync(value, siblings, options);
     return { valid: result.valid, errors: withLabel(result.errors, this.fieldLabel) };
   }
 
-  parse(value: Object | null | undefined, siblings?: Record<string, Object>): ParseResult<T | null> {
+  parse(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ParseResult<T | null> {
     if (value === null) {
       return { success: true, value: null, errors: [] };
     }
-    const result = parseSchema<T>(this.inner, value, siblings);
+    const result = parseSchema<T>(this.inner, value, siblings, options);
     return { success: result.success, value: result.value, errors: withLabel(result.errors, this.fieldLabel) };
   }
 
   async parseAsync(value: Object | null | undefined,
-    siblings?: Record<string, Object>): Promise<ParseResult<T | null>> {
+    siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ParseResult<T | null>> {
     if (value === null) {
       return { success: true, value: null, errors: [] };
     }
-    const result = await parseSchemaAsync<T>(this.inner, value, siblings);
+    const result = await parseSchemaAsync<T>(this.inner, value, siblings, options);
     return { success: result.success, value: result.value, errors: withLabel(result.errors, this.fieldLabel) };
   }
 }
@@ -125,6 +134,13 @@ export class DefaultSchema<T> implements ParsableSchema<T> {
   constructor(inner: AnySchema<T>, fallback: T) {
     this.inner = inner;
     this.fallback = fallback;
+  }
+
+  deepPartial(context: DeepPartialContext = new DeepPartialContext()): DefaultSchema<T> {
+    const result = new DefaultSchema<T>(deepPartialSchema(this.inner, context), this.fallback);
+    result.fieldLabel = this.fieldLabel;
+    result.docs = this.docs.copy();
+    return result;
   }
 
   meta(value: SchemaMetadata): DefaultSchema<T> { this.docs.meta(value); return this; }
@@ -155,37 +171,37 @@ export class DefaultSchema<T> implements ParsableSchema<T> {
     return new TransformSchema<T, U>(this, fn, message);
   }
 
-  validate(value: Object | null | undefined, siblings?: Record<string, Object>): ValidateResult {
+  validate(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ValidateResult {
     if (value === undefined) {
       return { valid: true, errors: [] };
     }
-    const result = this.inner.validate(value, siblings);
+    const result = this.inner.validate(value, siblings, options);
     return { valid: result.valid, errors: withLabel(result.errors, this.fieldLabel) };
   }
 
   async validateAsync(value: Object | null | undefined,
-    siblings?: Record<string, Object>): Promise<ValidateResult> {
+    siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ValidateResult> {
     if (value === undefined) {
       return { valid: true, errors: [] };
     }
-    const result = await this.inner.validateAsync(value, siblings);
+    const result = await this.inner.validateAsync(value, siblings, options);
     return { valid: result.valid, errors: withLabel(result.errors, this.fieldLabel) };
   }
 
-  parse(value: Object | null | undefined, siblings?: Record<string, Object>): ParseResult<T> {
+  parse(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ParseResult<T> {
     if (value === undefined) {
       return { success: true, value: this.fallback, errors: [] };
     }
-    const result = parseSchema<T>(this.inner, value, siblings);
+    const result = parseSchema<T>(this.inner, value, siblings, options);
     return { success: result.success, value: result.value, errors: withLabel(result.errors, this.fieldLabel) };
   }
 
   async parseAsync(value: Object | null | undefined,
-    siblings?: Record<string, Object>): Promise<ParseResult<T>> {
+    siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ParseResult<T>> {
     if (value === undefined) {
       return { success: true, value: this.fallback, errors: [] };
     }
-    const result = await parseSchemaAsync<T>(this.inner, value, siblings);
+    const result = await parseSchemaAsync<T>(this.inner, value, siblings, options);
     return { success: result.success, value: result.value, errors: withLabel(result.errors, this.fieldLabel) };
   }
 }
@@ -203,6 +219,13 @@ export class TransformSchema<T, U> implements ParsableSchema<U> {
     this.inner = inner;
     this.fn = fn;
     this.customMessage = message;
+  }
+
+  deepPartial(context: DeepPartialContext = new DeepPartialContext()): TransformSchema<T, U> {
+    const result = new TransformSchema<T, U>(deepPartialSchema(this.inner, context), this.fn, this.customMessage);
+    result.fieldLabel = this.fieldLabel;
+    result.docs = this.docs.copy();
+    return result;
   }
 
   meta(value: SchemaMetadata): TransformSchema<T, U> { this.docs.meta(value); return this; }
@@ -251,23 +274,23 @@ export class TransformSchema<T, U> implements ParsableSchema<U> {
     }
   }
 
-  validate(value: Object | null | undefined, siblings?: Record<string, Object>): ValidateResult {
-    const parsed = this.parse(value, siblings);
+  validate(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ValidateResult {
+    const parsed = this.parse(value, siblings, options);
     return { valid: parsed.success, errors: parsed.errors };
   }
 
   async validateAsync(value: Object | null | undefined,
-    siblings?: Record<string, Object>): Promise<ValidateResult> {
-    const parsed = await this.parseAsync(value, siblings);
+    siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ValidateResult> {
+    const parsed = await this.parseAsync(value, siblings, options);
     return { valid: parsed.success, errors: parsed.errors };
   }
 
-  parse(value: Object | null | undefined, siblings?: Record<string, Object>): ParseResult<U> {
-    return this.transformResult(parseSchema<T>(this.inner, value, siblings));
+  parse(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ParseResult<U> {
+    return this.transformResult(parseSchema<T>(this.inner, value, siblings, options));
   }
 
   async parseAsync(value: Object | null | undefined,
-    siblings?: Record<string, Object>): Promise<ParseResult<U>> {
-    return this.transformResult(await parseSchemaAsync<T>(this.inner, value, siblings));
+    siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ParseResult<U>> {
+    return this.transformResult(await parseSchemaAsync<T>(this.inner, value, siblings, options));
   }
 }

@@ -1,3 +1,5 @@
+import { ValidationOptions } from '../core/errors';
+import { DeepPartialContext, deepPartialSchema } from '../core/partial';
 import { AnySchema, ParsableSchema, ParseResult, SchemaDescriptor, SchemaMetadata, ValidateResult } from '../core/types';
 import { SchemaDocs, schemaToDescriptor } from '../core/schema';
 import { ErrorCode, issue, validationError } from '../core/i18n';
@@ -17,6 +19,12 @@ export class UnionSchema<T extends Object = Object> implements ParsableSchema<T>
   }
 
   meta(value: SchemaMetadata): UnionSchema<T> { this.docs.meta(value); return this; }
+  deepPartial(context: DeepPartialContext = new DeepPartialContext()): UnionSchema<T> {
+    const result = new UnionSchema<T>(this.schemas.map((schema: AnySchema<T>) => deepPartialSchema(schema, context)), this.customMessage);
+    result.docs = this.docs.copy();
+    result.fieldLabel = this.fieldLabel;
+    return result;
+  }
   describe(description: string): UnionSchema<T> { this.docs.describe(description); return this; }
   describeSchema(): SchemaDescriptor {
     const result = this.docs.build('union');
@@ -58,9 +66,9 @@ export class UnionSchema<T extends Object = Object> implements ParsableSchema<T>
     };
   }
 
-  validate(value: Object | null | undefined, siblings?: Record<string, Object>): ValidateResult {
+  validate(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ValidateResult {
     for (const schema of this.schemas) {
-      const result = schema.validate(value, siblings);
+      const result = schema.validate(value, siblings, options);
       if (result.valid) {
         return result;
       }
@@ -69,9 +77,9 @@ export class UnionSchema<T extends Object = Object> implements ParsableSchema<T>
   }
 
   async validateAsync(value: Object | null | undefined,
-    siblings?: Record<string, Object>): Promise<ValidateResult> {
+    siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ValidateResult> {
     for (const schema of this.schemas) {
-      const result = await schema.validateAsync(value, siblings);
+      const result = await schema.validateAsync(value, siblings, options);
       if (result.valid) {
         return result;
       }
@@ -79,9 +87,9 @@ export class UnionSchema<T extends Object = Object> implements ParsableSchema<T>
     return this.failure();
   }
 
-  parse(value: Object | null | undefined, siblings?: Record<string, Object>): ParseResult<T> {
+  parse(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ParseResult<T> {
     for (const schema of this.schemas) {
-      const result = parseSchema<T>(schema, value, siblings);
+      const result = parseSchema<T>(schema, value, siblings, options);
       if (result.success) {
         return result;
       }
@@ -90,9 +98,9 @@ export class UnionSchema<T extends Object = Object> implements ParsableSchema<T>
   }
 
   async parseAsync(value: Object | null | undefined,
-    siblings?: Record<string, Object>): Promise<ParseResult<T>> {
+    siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ParseResult<T>> {
     for (const schema of this.schemas) {
-      const result = await parseSchemaAsync<T>(schema, value, siblings);
+      const result = await parseSchemaAsync<T>(schema, value, siblings, options);
       if (result.success) {
         return result;
       }

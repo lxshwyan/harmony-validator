@@ -573,7 +573,7 @@ interface ParseResult<T> {
 
 ## 版本
 
-当前开发版本 `1.1.0`（发布候选）。演进路线：
+当前开发版本 `1.2.0`（发布候选）。演进路线：
 
 - `0.1.0` MVP：链式 API + 中国本地化规则 + 对象校验
 - `0.2.0`：数组校验、异步校验、深层嵌套、ArkUI 表单联动 `FormValidator`
@@ -592,8 +592,8 @@ interface ParseResult<T> {
 ./scripts/verify.sh
 ```
 
-该命令会安装依赖、运行 Hypium 本地测试、检查覆盖率门槛、构建 release HAR，并检查敏感信息、release 元数据、公开 API 合约和 128 KiB 体积预算。
-当前基线：232/232 测试通过；行覆盖率 91.18%、函数 81.01%、分支 81.60%。新增用例覆盖递归/交叉/条件 Schema、Codec、上下文、错误工具、批量/取消、文档恢复、JSON Schema 导入、标准格式语料、深层递归和往返稳定性；1.0 及更早版本回归继续通过。发布门槛为 90% / 80% / 80%，报告生成在 `validator/.test/default/outputs/test/reports/`。
+该命令会安装依赖、运行 Hypium 本地测试、检查覆盖率门槛、构建 release HAR，并检查敏感信息、release 元数据、公开 API 合约和 144 KiB 体积预算。
+当前基线：263/263 测试通过；行覆盖率 92.83%、函数 82.67%、分支 83.86%。新增用例覆盖组合语义、递归更新、严格导入诊断、上下文隔离、对象合并、并发上限、超时取消及销毁清理；早期版本回归继续通过。发布门槛为 90% / 80% / 80%，报告生成在 `validator/.test/default/outputs/test/reports/`。
 
 完整变更见 [CHANGELOG](./CHANGELOG.md)。
 从 0.x 升级请阅读 [1.0 迁移说明](./MIGRATION-1.0.md)。
@@ -601,3 +601,35 @@ interface ParseResult<T> {
 ## License
 
 MIT
+
+## 1.2.0：组合修复与执行控制
+
+- JSON Schema 的 `oneOf` 要求恰好一个分支通过；`anyOf` / `allOf` / `$ref` / `const` / `enum` 与同级约束共同生效。`minLength`、`maxLength` 按 Unicode 码点计算，并校验空字符串。
+- `validateValue(schema, value, { context })` 的上下文贯穿内置对象、数组、字典、元组、联合、递归与效果包装层；`parse(value, siblings?, options?)` 也支持。各次调用独立传递，兼容原有两参数实现。
+- `extend()` / `merge()` 替换同名字段时，不再继承旧字段的对象级可选标记；右侧 `partial()` 标记仍生效。
+- `deepPartial()` 处理 Object、Array、Record、Tuple、Union、Intersection、When、Lazy、判别联合及 nullable/default/transform 包装；保留规则、元数据和回调，不修改原始 Schema。Lazy 使用单次转换缓存支持递归；判别联合仍要求有效判别字段。When 条件函数第三个参数可读取本次 ValidationOptions。第三方可实现 `DeepPartialSchema<T>` 并传递转换上下文；没有此能力的包装保持原样。输入数据本身不支持循环引用。
+- 新增 `interop`、`execution`、`composition`、`form` 按需入口（前缀 `@hmkit/validator/`），原主入口保持兼容。按需入口不自动注册格式插件，导入文档包含格式时请先注册相应规则。
+
+```typescript
+import { liteV } from '@hmkit/validator/lite';
+import { validateBatchAsync } from '@hmkit/validator/execution';
+
+const schema = liteV.string().required();
+const results = await validateBatchAsync(schema, ['Alice', '', 'Bob'], {
+  concurrency: 2,
+  timeoutMs: 3000
+});
+// results 按输入顺序返回；results[1].valid 为 false。
+```
+
+`concurrency` 默认 1，必须为正整数；它限制批量条目任务数量，不限制单个对象内部字段的并行度。`timeoutMs` 可选，必须为有限正数，是每个条目的等待上限。超时返回 `timeout` 错误，批处理停止派发后续条目并收集已启动条目的结果，因此结果可能是输入的前缀。底层网络请求不会被强制中止，业务层需自行取消；第三方 Schema 抛出的异常继续向调用方传播，且停止派发新条目。原 `abortEarly` / `maxErrors` 仍是结果裁剪，不承诺提前终止内部规则执行。
+
+JSON Schema 导入仍是常用子集：支持基本单一类型、字符串约束、数值 minimum/maximum/integer、数组 items/minItems/maxItems、对象 properties/required/额外字段布尔策略、组合及本地引用。未知关键字仍宽松忽略；不要把它当作完整 Draft 2020-12 合规引擎。当前不保证导入 Schema 再导出后完整保留原文档。
+
+可用 `fromJSONSchema(source, { strict: true })` 拒绝未支持能力，或从 `interop` 导入 `inspectJSONSchema(source)` 获取带 JSON Pointer 路径的诊断；宽松模式可用 `onDiagnostic` 收集诊断。支持 true/false 布尔 Schema。严格模式是能力预检，不等于完整标准元 Schema 校验。
+
+String/Number 的 `customAsync((value, options?) => Promise<boolean>, message)` 可通过 `options.cancellation.onCancel()` 订阅取消并退订。执行入口为每次请求创建独立子令牌；超时会通知子令牌，不会取消调用者的共享令牌。实际网络适配器必须主动响应通知；完成后释放自己的订阅。页面退出时取消令牌并调用 `form.dispose()`；表单销毁不再派发防抖事件遗留的依赖校验。
+
+完整示例与验收步骤见仓库的 `doc/ADVANCED-1.2.0.md` 和英文版 `doc/ADVANCED-1.2.0-en.md`；`scripts/consumer-scenarios.ets` 提供递归更新、动态表单、模拟远程校验与按需导入的可编译实现。示例请求使用定时器模拟，不代替真实网络验收。
+
+发布验证增加独立 API 12 消费工程，`bash scripts/verify-consumer.sh` 校对安装的 HAR 字节码，并分别构建主入口与按需入口 HAP。子路径不保证减少整个 HAR 或消费 HAP 体积，收益以当前工具链实测为准。1.2 扩展范围的 HAR 预算由 144 KiB 调整为 160 KiB，覆盖递归支持、导入诊断、取消通知及双语文档；这是功能增长预算，不是体积优化，仍保留体积门禁。

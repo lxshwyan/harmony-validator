@@ -1,3 +1,4 @@
+import { ValidationOptions } from '../core/errors';
 import {
   AnySchema, ParsableSchema, ParseResult, SchemaDescriptor, SchemaMetadata, ValidateError, ValidateResult
 } from '../core/types';
@@ -58,26 +59,26 @@ export class PreprocessSchema<T> implements ParsableSchema<T> {
       return { success: false, errors: [validationError(issue(this.errorCode, this.customMessage), this.fieldLabel)] };
     }
   }
-  validate(value: Object | null | undefined, siblings?: Record<string, Object>): ValidateResult {
-    const result = this.parse(value, siblings);
+  validate(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ValidateResult {
+    const result = this.parse(value, siblings, options);
     return { valid: result.success, errors: result.errors };
   }
   async validateAsync(value: Object | null | undefined,
-    siblings?: Record<string, Object>): Promise<ValidateResult> {
-    const result = await this.parseAsync(value, siblings);
+    siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ValidateResult> {
+    const result = await this.parseAsync(value, siblings, options);
     return { valid: result.success, errors: result.errors };
   }
-  parse(value: Object | null | undefined, siblings?: Record<string, Object>): ParseResult<T> {
+  parse(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ParseResult<T> {
     const prepared = this.preprocess(value);
     if (!prepared.success) return { success: false, errors: prepared.errors };
-    const result = parseSchema<T>(this.inner, prepared.value, siblings);
+    const result = parseSchema<T>(this.inner, prepared.value, siblings, options);
     return { success: result.success, value: result.value, errors: withLabel(result.errors, this.fieldLabel) };
   }
   async parseAsync(value: Object | null | undefined,
-    siblings?: Record<string, Object>): Promise<ParseResult<T>> {
+    siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ParseResult<T>> {
     const prepared = this.preprocess(value);
     if (!prepared.success) return { success: false, errors: prepared.errors };
-    const result = await parseSchemaAsync<T>(this.inner, prepared.value, siblings);
+    const result = await parseSchemaAsync<T>(this.inner, prepared.value, siblings, options);
     return { success: result.success, value: result.value, errors: withLabel(result.errors, this.fieldLabel) };
   }
 }

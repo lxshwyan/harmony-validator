@@ -1,3 +1,5 @@
+import { ValidationOptions } from '../core/errors';
+import { DeepPartialContext, deepPartialSchema } from '../core/partial';
 import {
   AnySchema, ParsableSchema, ParseResult, SchemaDescriptor, SchemaMetadata, ValidateError, ValidateResult
 } from '../core/types';
@@ -5,7 +7,7 @@ import { SchemaDocs, schemaToDescriptor } from '../core/schema';
 import { DefaultSchema, NullableSchema, parseSchema, parseSchemaAsync, TransformSchema } from './EffectSchemas';
 
 export type LazySchemaFactory<T> = () => AnySchema<T>;
-export type WhenPredicate = (other: Object | null | undefined, siblings?: Record<string, Object>) => boolean;
+export type WhenPredicate = (other: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions) => boolean;
 
 /** 延迟取得内部 Schema，支持树形或其他递归数据结构。 */
 export class LazySchema<T> implements ParsableSchema<T> {
@@ -17,6 +19,13 @@ export class LazySchema<T> implements ParsableSchema<T> {
   private activeDescriptor?: SchemaDescriptor;
 
   constructor(factory: LazySchemaFactory<T>) { this.factory = factory; }
+  deepPartial(context: DeepPartialContext = new DeepPartialContext()): LazySchema<T> {
+    const result = new LazySchema<T>((): AnySchema<T> => deepPartialSchema(this.schema(), context));
+    result.docs = this.docs.copy();
+    // Register before resolving the factory, so recursive edges point back to this clone.
+    context.remember(this, result);
+    return result;
+  }
   meta(value: SchemaMetadata): LazySchema<T> { this.docs.meta(value); return this; }
   describe(value: string): LazySchema<T> { this.docs.describe(value); return this; }
   label(value: string): LazySchema<T> { this.docs.label(value); return this; }
@@ -37,25 +46,24 @@ export class LazySchema<T> implements ParsableSchema<T> {
     const result = this.docs.build('lazy');
     this.describing = true;
     this.activeDescriptor = result;
-    result.inner = schemaToDescriptor(this.schema());
-    this.activeDescriptor = undefined;
-    this.describing = false;
+    try { result.inner = schemaToDescriptor(this.schema()); }
+    finally { this.activeDescriptor = undefined; this.describing = false; }
     return result;
   }
 
-  validate(value: Object | null | undefined, siblings?: Record<string, Object>): ValidateResult {
-    return this.schema().validate(value, siblings);
+  validate(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ValidateResult {
+    return this.schema().validate(value, siblings, options);
   }
   validateAsync(value: Object | null | undefined,
-    siblings?: Record<string, Object>): Promise<ValidateResult> {
-    return this.schema().validateAsync(value, siblings);
+    siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ValidateResult> {
+    return this.schema().validateAsync(value, siblings, options);
   }
-  parse(value: Object | null | undefined, siblings?: Record<string, Object>): ParseResult<T> {
-    return parseSchema<T>(this.schema(), value, siblings);
+  parse(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ParseResult<T> {
+    return parseSchema<T>(this.schema(), value, siblings, options);
   }
   parseAsync(value: Object | null | undefined,
-    siblings?: Record<string, Object>): Promise<ParseResult<T>> {
-    return parseSchemaAsync<T>(this.schema(), value, siblings);
+    siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ParseResult<T>> {
+    return parseSchemaAsync<T>(this.schema(), value, siblings, options);
   }
 }
 
@@ -99,6 +107,11 @@ export class IntersectionSchema<T> implements ParsableSchema<T> {
   private docs: SchemaDocs = new SchemaDocs();
 
   constructor(left: AnySchema<T>, right: AnySchema<T>) { this.left = left; this.right = right; }
+  deepPartial(context: DeepPartialContext = new DeepPartialContext()): IntersectionSchema<T> {
+    const result = new IntersectionSchema<T>(deepPartialSchema(this.left, context), deepPartialSchema(this.right, context));
+    result.docs = this.docs.copy();
+    return result;
+  }
   meta(value: SchemaMetadata): IntersectionSchema<T> { this.docs.meta(value); return this; }
   describe(value: string): IntersectionSchema<T> { this.docs.describe(value); return this; }
   label(value: string): IntersectionSchema<T> { this.docs.label(value); return this; }
@@ -113,25 +126,25 @@ export class IntersectionSchema<T> implements ParsableSchema<T> {
     result.options.push(schemaToDescriptor(this.right));
     return result;
   }
-  validate(value: Object | null | undefined, siblings?: Record<string, Object>): ValidateResult {
+  validate(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ValidateResult {
     const errors: ValidateError[] = [];
-    appendUnique(errors, this.left.validate(value, siblings).errors);
-    appendUnique(errors, this.right.validate(value, siblings).errors);
+    appendUnique(errors, this.left.validate(value, siblings, options).errors);
+    appendUnique(errors, this.right.validate(value, siblings, options).errors);
     return { valid: errors.length === 0, errors };
   }
   async validateAsync(value: Object | null | undefined,
-    siblings?: Record<string, Object>): Promise<ValidateResult> {
+    siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ValidateResult> {
     const results = await Promise.all([
-      this.left.validateAsync(value, siblings), this.right.validateAsync(value, siblings)
+      this.left.validateAsync(value, siblings, options), this.right.validateAsync(value, siblings, options)
     ]);
     const errors: ValidateError[] = [];
     appendUnique(errors, results[0].errors);
     appendUnique(errors, results[1].errors);
     return { valid: errors.length === 0, errors };
   }
-  parse(value: Object | null | undefined, siblings?: Record<string, Object>): ParseResult<T> {
-    const left = parseSchema<T>(this.left, value, siblings);
-    const right = parseSchema<T>(this.right, value, siblings);
+  parse(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ParseResult<T> {
+    const left = parseSchema<T>(this.left, value, siblings, options);
+    const right = parseSchema<T>(this.right, value, siblings, options);
     const errors: ValidateError[] = [];
     appendUnique(errors, left.errors);
     appendUnique(errors, right.errors);
@@ -139,9 +152,9 @@ export class IntersectionSchema<T> implements ParsableSchema<T> {
     return { success: true, value: mergeParsed(left.value, right.value), errors: [] };
   }
   async parseAsync(value: Object | null | undefined,
-    siblings?: Record<string, Object>): Promise<ParseResult<T>> {
+    siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ParseResult<T>> {
     const results = await Promise.all([
-      parseSchemaAsync<T>(this.left, value, siblings), parseSchemaAsync<T>(this.right, value, siblings)
+      parseSchemaAsync<T>(this.left, value, siblings, options), parseSchemaAsync<T>(this.right, value, siblings, options)
     ]);
     const errors: ValidateError[] = [];
     appendUnique(errors, results[0].errors);
@@ -167,6 +180,12 @@ export class WhenSchema<T> implements ParsableSchema<T> {
     this.otherwiseSchema = otherwiseSchema;
   }
   meta(value: SchemaMetadata): WhenSchema<T> { this.docs.meta(value); return this; }
+  deepPartial(context: DeepPartialContext = new DeepPartialContext()): WhenSchema<T> {
+    const result = new WhenSchema<T>(this.field, this.predicate,
+      deepPartialSchema(this.thenSchema, context), deepPartialSchema(this.otherwiseSchema, context));
+    result.docs = this.docs.copy();
+    return result;
+  }
   describe(value: string): WhenSchema<T> { this.docs.describe(value); return this; }
   label(value: string): WhenSchema<T> { this.docs.label(value); return this; }
   nullable(): NullableSchema<T> { return new NullableSchema<T>(this); }
@@ -174,9 +193,9 @@ export class WhenSchema<T> implements ParsableSchema<T> {
   transform<U>(fn: (value: T) => U, message?: string): TransformSchema<T, U> {
     return new TransformSchema<T, U>(this, fn, message);
   }
-  private selected(siblings?: Record<string, Object>): AnySchema<T> {
+  private selected(siblings?: Record<string, Object>, options?: ValidationOptions): AnySchema<T> {
     let matched = false;
-    try { matched = this.predicate(siblings?.[this.field], siblings); } catch (_error) { matched = false; }
+    try { matched = this.predicate(siblings?.[this.field], siblings, options); } catch (_error) { matched = false; }
     return matched ? this.thenSchema : this.otherwiseSchema;
   }
   describeSchema(): SchemaDescriptor {
@@ -187,18 +206,18 @@ export class WhenSchema<T> implements ParsableSchema<T> {
     result.unrepresentable.push(`runtime-condition:${this.field}`);
     return result;
   }
-  validate(value: Object | null | undefined, siblings?: Record<string, Object>): ValidateResult {
-    return this.selected(siblings).validate(value, siblings);
+  validate(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ValidateResult {
+    return this.selected(siblings, options).validate(value, siblings, options);
   }
   validateAsync(value: Object | null | undefined,
-    siblings?: Record<string, Object>): Promise<ValidateResult> {
-    return this.selected(siblings).validateAsync(value, siblings);
+    siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ValidateResult> {
+    return this.selected(siblings, options).validateAsync(value, siblings, options);
   }
-  parse(value: Object | null | undefined, siblings?: Record<string, Object>): ParseResult<T> {
-    return parseSchema<T>(this.selected(siblings), value, siblings);
+  parse(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ParseResult<T> {
+    return parseSchema<T>(this.selected(siblings, options), value, siblings, options);
   }
   parseAsync(value: Object | null | undefined,
-    siblings?: Record<string, Object>): Promise<ParseResult<T>> {
-    return parseSchemaAsync<T>(this.selected(siblings), value, siblings);
+    siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ParseResult<T>> {
+    return parseSchemaAsync<T>(this.selected(siblings, options), value, siblings, options);
   }
 }

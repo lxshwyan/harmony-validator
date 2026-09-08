@@ -1,3 +1,4 @@
+import { ValidationOptions } from './errors';
 /**
  * 单条校验错误。
  * - path: 出错的字段路径，顶层字段为字段名，嵌套用 "a.b" 表示；单值校验时为空串。
@@ -104,17 +105,17 @@ export interface AnySchema<T = Object> {
    * ArkTS 不支持 TypeScript 的 conditional type / infer，因此使用显式类型标记。
    */
   readonly __schemaType: T | null;
-  validate(value: Object | null | undefined, siblings?: Record<string, Object>): ValidateResult;
-  validateAsync(value: Object | null | undefined, siblings?: Record<string, Object>): Promise<ValidateResult>;
+  validate(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ValidateResult;
+  validateAsync(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ValidateResult>;
   /** 内置 Schema 提供的可选解析入口；保持第三方 AnySchema 实现向后兼容。 */
-  parse?(value: Object | null | undefined, siblings?: Record<string, Object>): ParseResult<T>;
-  parseAsync?(value: Object | null | undefined, siblings?: Record<string, Object>): Promise<ParseResult<T>>;
+  parse?(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ParseResult<T>;
+  parseAsync?(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ParseResult<T>>;
   /** 0.8.0 起内置 Schema 提供；第三方 Schema 可继续不实现。 */
   describeSchema?(): SchemaDescriptor;
 }
 
 /** 内置 Schema 的完整接口：校验之外还可取得默认值或转换后的结果。 */
 export interface ParsableSchema<T = Object> extends AnySchema<T> {
-  parse(value: Object | null | undefined, siblings?: Record<string, Object>): ParseResult<T>;
-  parseAsync(value: Object | null | undefined, siblings?: Record<string, Object>): Promise<ParseResult<T>>;
+  parse(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ParseResult<T>;
+  parseAsync(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ParseResult<T>>;
 }

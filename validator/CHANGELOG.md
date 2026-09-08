@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.2.0
+
+- Lazy deepPartial 使用单次转换缓存支持递归/相互递归；判别联合局部更新保留判别字段检查
+- JSON Schema 新增 inspectJSONSchema、strict 导入、路径诊断、布尔 Schema；拒绝不前进的引用循环并修复数字/布尔空字符串误判
+- 取消令牌新增 onCancel 订阅/退订；customAsync 可读取本次 ValidationOptions，取消和超时通知独立请求令牌
+- 新增 composition/form 按需入口和递归、动态表单、模拟远程校验消费示例
+
+- 补齐 Union/Intersection/When 的 deepPartial；修复 When 条件函数未收到调用上下文的问题
+
+- 修复 JSON Schema oneOf 重叠分支误判、组合与引用遗漏同级约束；字符串关键词处理空值与 Unicode 码点
+- 修复内置容器/效果包装的上下文丢失，校验与解析使用独立调用参数
+- 修复 extend/merge 覆盖字段时残留旧可选状态
+- deepPartial 支持数组、字典、元组、nullable/default/transform；增加第三方 DeepPartialSchema 扩展接口
+- 批量异步校验新增 concurrency 与 timeoutMs，保持输入顺序，取消/超时/异常后停止新任务派发
+- 新增 interop/execution 子路径与独立 HAR 消费工程，比较主入口和按需入口 HAP
+- 保留既有 API，扩展功能后 HAR 内部预算调整为 160 KiB；按需入口不承诺自动缩小整个 HAR
+- 修复表单销毁后防抖事件继续派发依赖校验的问题；263 项回归测试通过
+
 ## 1.1.0
 
 - 新增 `v.any()`、`v.unknown()`、`v.never()`、`v.null()`、`v.lazy()` 与 `v.intersection()`

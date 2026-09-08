@@ -59,6 +59,8 @@ export class ErrorCode {
   static readonly CODEC_DECODE: string = 'codec_decode';
   static readonly CODEC_ENCODE: string = 'codec_encode';
   static readonly CONTEXT: string = 'context';
+  static readonly ONE_OF: string = 'one_of';
+  static readonly TIMEOUT: string = 'timeout';
 }
 
 export type MessageCatalog = Record<string, string>;
@@ -128,6 +130,8 @@ const ZH_CN: MessageCatalog = {
   'codec_decode': '输入解码失败',
   'codec_encode': '输出编码失败',
   'context': '业务上下文校验未通过',
+  'one_of': '必须恰好满足一个候选规则',
+  'timeout': '校验超时',
 };
 
 const EN_US: MessageCatalog = {
@@ -188,6 +192,8 @@ const EN_US: MessageCatalog = {
   'codec_decode': 'Input decoding failed',
   'codec_encode': 'Output encoding failed',
   'context': 'Validation context rule failed',
+  'one_of': 'Expected exactly one matching schema',
+  'timeout': 'Validation timed out',
 };
 
 /** 全局语言配置。默认 zh-CN；缺失词条回退到 zh-CN。 */

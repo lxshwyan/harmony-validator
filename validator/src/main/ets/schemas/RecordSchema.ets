@@ -1,3 +1,5 @@
+import { DeepPartialContext, deepPartialSchema } from '../core/partial';
+import { ValidationOptions } from '../core/errors';
 import {
   AnySchema, ParsableSchema, ParseResult, SchemaDescriptor, SchemaMetadata, ValidateError, ValidateResult
 } from '../core/types';
@@ -17,6 +19,15 @@ export class RecordSchema<T extends Object = Object> implements ParsableSchema<R
   constructor(valueSchema: AnySchema<T>, message?: string) {
     this.valueSchema = valueSchema;
     this.customMessage = message;
+  }
+
+  /** Copies the container and recursively makes contained object fields optional. */
+  deepPartial(context: DeepPartialContext = new DeepPartialContext()): RecordSchema<T> {
+    const result = new RecordSchema<T>(deepPartialSchema(this.valueSchema, context), this.customMessage);
+    result.isOptional = this.isOptional;
+    result.fieldLabel = this.fieldLabel;
+    result.docs = this.docs.copy();
+    return result;
   }
 
   meta(value: SchemaMetadata): RecordSchema<T> { this.docs.meta(value); return this; }
@@ -54,13 +65,13 @@ export class RecordSchema<T extends Object = Object> implements ParsableSchema<R
     return { valid: false, errors: [validationError(issue(ErrorCode.TYPE_OBJECT), this.fieldLabel)] };
   }
 
-  validate(value: Object | null | undefined): ValidateResult {
+  validate(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ValidateResult {
     if (value === null || value === undefined) return this.emptyResult();
     if (typeof value !== 'object' || Array.isArray(value) || value instanceof Date) return this.typeError();
     const source = value as Record<string, Object>;
     const errors: ValidateError[] = [];
     for (const key of Object.keys(source)) {
-      const result = this.valueSchema.validate(source[key], source);
+      const result = this.valueSchema.validate(source[key], source, options);
       for (const error of result.errors) {
         const path = error.path === '' ? key : `${key}.${error.path}`;
         errors.push({ path, message: error.message, code: error.code });
@@ -69,13 +80,13 @@ export class RecordSchema<T extends Object = Object> implements ParsableSchema<R
     return { valid: errors.length === 0, errors };
   }
 
-  async validateAsync(value: Object | null | undefined): Promise<ValidateResult> {
+  async validateAsync(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ValidateResult> {
     if (value === null || value === undefined) return this.emptyResult();
     if (typeof value !== 'object' || Array.isArray(value) || value instanceof Date) return this.typeError();
     const source = value as Record<string, Object>;
     const keys = Object.keys(source);
     const tasks: Array<Promise<ValidateResult>> = [];
-    for (const key of keys) tasks.push(this.valueSchema.validateAsync(source[key], source));
+    for (const key of keys) tasks.push(this.valueSchema.validateAsync(source[key], source, options));
     const results = await Promise.all(tasks);
     const errors: ValidateError[] = [];
     for (let i = 0; i < keys.length; i++) {
@@ -87,7 +98,7 @@ export class RecordSchema<T extends Object = Object> implements ParsableSchema<R
     return { valid: errors.length === 0, errors };
   }
 
-  parse(value: Object | null | undefined): ParseResult<Record<string, T>> {
+  parse(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): ParseResult<Record<string, T>> {
     if (value === null || value === undefined) {
       const result = this.emptyResult();
       return result.valid ? { success: true, errors: [] } : { success: false, errors: result.errors };
@@ -99,7 +110,7 @@ export class RecordSchema<T extends Object = Object> implements ParsableSchema<R
     const output: Record<string, T> = {};
     const errors: ValidateError[] = [];
     for (const key of Object.keys(source)) {
-      const parsed = parseSchema<T>(this.valueSchema, source[key], source);
+      const parsed = parseSchema<T>(this.valueSchema, source[key], source, options);
       if (parsed.success) {
         output[key] = parsed.value as T;
       } else {
@@ -112,7 +123,7 @@ export class RecordSchema<T extends Object = Object> implements ParsableSchema<R
     return errors.length === 0 ? { success: true, value: output, errors: [] } : { success: false, errors };
   }
 
-  async parseAsync(value: Object | null | undefined): Promise<ParseResult<Record<string, T>>> {
+  async parseAsync(value: Object | null | undefined, siblings?: Record<string, Object>, options?: ValidationOptions): Promise<ParseResult<Record<string, T>>> {
     if (value === null || value === undefined) {
       const result = this.emptyResult();
       return result.valid ? { success: true, errors: [] } : { success: false, errors: result.errors };
@@ -123,7 +134,7 @@ export class RecordSchema<T extends Object = Object> implements ParsableSchema<R
     const source = value as Record<string, Object>;
     const keys = Object.keys(source);
     const tasks: Array<Promise<ParseResult<T>>> = [];
-    for (const key of keys) tasks.push(parseSchemaAsync<T>(this.valueSchema, source[key], source));
+    for (const key of keys) tasks.push(parseSchemaAsync<T>(this.valueSchema, source[key], source, options));
     const results = await Promise.all(tasks);
     const output: Record<string, T> = {};
     const errors: ValidateError[] = [];
