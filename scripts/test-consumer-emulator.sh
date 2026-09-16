@@ -49,21 +49,21 @@ for mode in main lite; do
     "${HDC}" -t "${TARGET}" shell aa force-stop -b "${BUNDLE}" >/dev/null
     result="$("${HDC}" -t "${TARGET}" shell aa start -a EntryAbility -b "${BUNDLE}")"
     [[ "${result}" == *'start ability successfully'* ]] || { echo "${result}"; exit 1; }
-    assert_status 'PASS 1.2 consumer'
+    assert_status 'PASS 1.3 consumer'
     cp "${LAYOUT}" "${OUT}/${mode}-start-${run}.json"
     echo "${mode}: process restart ${run} PASS"
   done
   click_button 'Run acceptance' doubleClick
-  assert_status 'PASS 1.2 consumer'
+  assert_status 'PASS 1.3 consumer'
   cp "${LAYOUT}" "${OUT}/${mode}-repeat.json"
   click_button 'Cancel pending request'
   assert_status 'Cancelled'
   cp "${LAYOUT}" "${OUT}/${mode}-cancel.json"
   click_button 'Run acceptance'
-  assert_status 'PASS 1.2 consumer'
+  assert_status 'PASS 1.3 consumer'
   "${HDC}" -t "${TARGET}" shell uitest uiInput keyEvent Back >/dev/null
   "${HDC}" -t "${TARGET}" shell aa start -a EntryAbility -b "${BUNDLE}" >/dev/null
-  assert_status 'PASS 1.2 consumer'
+  assert_status 'PASS 1.3 consumer'
   cp "${LAYOUT}" "${OUT}/${mode}-reenter.json"
   "${HDC}" -t "${TARGET}" shell snapshot_display -f /data/local/tmp/hmkit-validator.jpeg >/dev/null
   "${HDC}" -t "${TARGET}" file recv /data/local/tmp/hmkit-validator.jpeg "${OUT}/${mode}-pass.jpeg" >/dev/null

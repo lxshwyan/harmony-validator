@@ -2,6 +2,16 @@
 
 > A declarative form / data validation library for HarmonyOS (ArkTS). Chainable API with built-in **China-localized rules** (mobile number, ID card, bank card, and more) — ready to use out of the box.
 
+## 1.3.0
+
+- Form field cancellation and global/per-field `timeoutMs`; replacement inputs, reset and disposal notify obsolete tasks.
+- `@hmkit/validator/safety`: opt-in `guarded(schema, { maxDepth, maxNodes })` and `inspectInput` for bounded traversal and cycle detection.
+- `@hmkit/validator/collections`: `uniqueBy(arraySchema, selector, { path, message })` checks parsed keys with indexed errors.
+- Extended JSON Schema import: decimal multiples, exclusive bounds, structural uniqueness, contains counts and conditionals.
+
+Cancellation requires cooperative adapters; guards are not execution sandboxes; JSON Schema support remains a subset. `uniqueBy.validate` runs inner parsing/transforms. Runtime wrappers do not promise serialization round trips.
+See repository `doc/ADVANCED-1.3.0-en.md` for examples and boundaries.
+
 Write validations like you do with `zod` / `yup`, but with high-frequency Chinese scenarios covered by a single library.
 
 ## Features
@@ -554,7 +564,7 @@ interface ParseResult<T> {
 
 ## Version
 
-Current development release: `1.2.0` (release candidate). Roadmap:
+Current version: `1.3.0`. Roadmap:
 
 - `0.1.0` MVP: chainable API + China-localized rules + object validation
 - `0.2.0`: array validation, async validation, deep nesting, ArkUI form binding `FormValidator`
@@ -573,8 +583,8 @@ Current development release: `1.2.0` (release candidate). Roadmap:
 ./scripts/verify.sh
 ```
 
-This installs dependencies, runs local Hypium tests, enforces coverage thresholds, builds a release HAR, and checks publishing credentials, release metadata, the public API contract, and a 144 KiB package-size budget.
-Current baseline: 263/263 tests passing; 92.83% line, 82.67% function, and 83.86% branch coverage. Tests cover composition semantics, recursive updates, strict-import diagnostics, context isolation, object merging, concurrency, timeout/cancellation, and disposal cleanup; earlier regressions remain green. Release thresholds are 90% / 80% / 80%; reports are generated under `validator/.test/default/outputs/test/reports/`.
+This installs dependencies, runs local Hypium tests, enforces coverage thresholds, builds a release HAR, and checks publishing credentials, release metadata, the public API contract, and a 160 KiB package-size budget.
+The historical 1.2.0 baseline passed 263 tests. See repository `doc/VALIDATION-1.3.0.md` for this development version's results. Coverage thresholds remain 90% / 80% / 80%; reports are generated under `validator/.test/default/outputs/test/reports/`.
 
 See the full [CHANGELOG](./CHANGELOG.md).
 For upgrades from 0.x, see [Migrating to 1.0](./MIGRATION-1.0.md).

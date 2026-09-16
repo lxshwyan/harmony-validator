@@ -25,8 +25,8 @@ struct Index {
     const partial = deepPartialSchema(liteV.object({ 'name': liteV.string().required() }));
     const passed = result.valid && batch.length === 2 && !batch[1].valid && !json.validate(1).valid &&
       partial.validate({} as Record<string, Object>).valid && await runFeatureScenarios(runToken);
-    if (!runToken.isCancelled()) this.status = passed ? 'PASS 1.2 consumer' : 'FAIL 1.2 consumer';
-    } catch (_error) { if (!runToken.isCancelled()) this.status = 'FAIL 1.2 consumer: exception'; }
+    if (!runToken.isCancelled()) this.status = passed ? 'PASS 1.3 consumer' : 'FAIL 1.3 consumer';
+    } catch (_error) { if (!runToken.isCancelled()) this.status = 'FAIL 1.3 consumer: exception'; }
     finally { this.busy = false; }
   }
   build() {

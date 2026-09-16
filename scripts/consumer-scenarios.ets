@@ -3,6 +3,8 @@ import { LazySchema, DiscriminatedUnionSchema, WhenSchema } from '@hmkit/validat
 import { FormValidator, FormTrigger } from '@hmkit/validator/form';
 import { ValidationOptions, ValidationCancellationToken, validateValueAsync } from '@hmkit/validator/execution';
 import { fromJSONSchema, inspectJSONSchema } from '@hmkit/validator/interop';
+import { guarded, inspectInput } from '@hmkit/validator/safety';
+import { uniqueBy } from '@hmkit/validator/collections';
 
 /** Deterministic remote-request mock. Real adapters should abort their request in onCancel. */
 export function remoteCheck(value: string, options?: ValidationOptions): Promise<boolean> {
@@ -15,6 +17,24 @@ export function remoteCheck(value: string, options?: ValidationOptions): Promise
 
 /** Compiled against the packaged HAR, not project source files. */
 export async function runFeatureScenarios(pageToken: ValidationCancellationToken): Promise<boolean> {
+  const safe = guarded(liteV.array(liteV.number()), { maxDepth: 2, maxNodes: 5 });
+  if (!safe.parse([1, 2]).success || safe.validate([1, 2, 3, 4, 5]).valid) return false;
+  const circular: Record<string, Object> = {}; circular['self'] = circular;
+  if (inspectInput(circular).errors[0]?.code !== 'input_cycle') return false;
+  const distinct = uniqueBy(liteV.array(liteV.string()), (value: string): string => value.toLowerCase());
+  if ((await distinct.parseAsync(['A', 'a'])).success || !distinct.validate(['a', 'b']).valid) return false;
+  const extended = fromJSONSchema(JSON.parse('{"type":"array","uniqueItems":true,"contains":{"multipleOf":0.01,"exclusiveMinimum":0},"minContains":1,"maxContains":2}') as Record<string, Object>, { strict: true });
+  if (!extended.validate([4.02]).valid || extended.validate([4.021]).valid || extended.validate([1, 1]).valid) return false;
+  const conditional = fromJSONSchema(JSON.parse('{"if":{"type":"number"},"then":{"multipleOf":2},"else":false}') as Record<string, Object>, { strict: true });
+  if (!(await conditional.validateAsync(4)).valid || conditional.validate(3).valid) return false;
+  let cancelledField = false;
+  const fieldSchema = liteV.string().customAsync((_value: string, options?: ValidationOptions): Promise<boolean> =>
+    new Promise<boolean>((_resolve): void => { options?.cancellation?.onCancel((): void => { cancelledField = true; }); }), 'pending');
+  const pendingForm = new FormValidator({ 'field': fieldSchema });
+  const pendingTask = pendingForm.validateFieldAsync('field', 'value');
+  pendingForm.dispose();
+  await pendingTask;
+  if (!cancelledField) return false;
   const tree: LazySchema<Record<string, Object>> = new LazySchema<Record<string, Object>>(
     (): AnySchema<Record<string, Object>> => liteV.object({
       'name': liteV.string().required(), 'children': liteV.array(tree)
@@ -29,7 +49,7 @@ export async function runFeatureScenarios(pageToken: ValidationCancellationToken
   const person: Record<string, Object> = { 'kind': 'person' };
   if (!variants.validate(person).valid || variants.validate(leaf).valid) return false;
 
-  const unsupported = JSON.parse('{"type":"number","multipleOf":2}') as Record<string, Object>;
+  const unsupported = JSON.parse('{"type":"number","unsupportedKeyword":2}') as Record<string, Object>;
   if (inspectJSONSchema(unsupported).length !== 1) return false;
   let rejected = false;
   try { fromJSONSchema(unsupported, { strict: true }); } catch (_error) { rejected = true; }

@@ -2,6 +2,16 @@
 
 > 鸿蒙 ArkTS 声明式表单/数据校验库。链式 API，内置手机号、身份证、银行卡等**中国本地化规则**，开箱即用。
 
+## 1.3.0
+
+- 表单字段异步取消贯通，支持全局/字段 `timeoutMs`；输入替换、reset/dispose 通知旧任务取消。
+- `@hmkit/validator/safety`：`guarded(schema, { maxDepth, maxNodes })`、`inspectInput`，显式开启输入限额与循环检测。
+- `@hmkit/validator/collections`：`uniqueBy(arraySchema, selector, { path, message })`，检查解析后元素并返回重复项下标。
+- JSON Schema 导入新增小数倍数、排他上下界、结构去重、contains 数量约束、if/then/else。
+
+取消需要底层请求配合；输入保护不是执行沙箱；JSON Schema 仍为子集。`uniqueBy` 的 validate 也会运行内部 parse/transform。新包装不承诺序列化往返。
+完整示例与边界见仓库 [1.3 中文指南](https://github.com/lxshwyan/harmony-validator/blob/master/doc/ADVANCED-1.3.0.md)（随本次代码提交后可用）。
+
 像写 `zod` / `yup` 一样写校验，但国内高频场景一个库全搞定。
 
 ## 特性
@@ -573,7 +583,7 @@ interface ParseResult<T> {
 
 ## 版本
 
-当前开发版本 `1.2.0`（发布候选）。演进路线：
+当前版本 `1.3.0`。演进路线：
 
 - `0.1.0` MVP：链式 API + 中国本地化规则 + 对象校验
 - `0.2.0`：数组校验、异步校验、深层嵌套、ArkUI 表单联动 `FormValidator`
@@ -592,8 +602,8 @@ interface ParseResult<T> {
 ./scripts/verify.sh
 ```
 
-该命令会安装依赖、运行 Hypium 本地测试、检查覆盖率门槛、构建 release HAR，并检查敏感信息、release 元数据、公开 API 合约和 144 KiB 体积预算。
-当前基线：263/263 测试通过；行覆盖率 92.83%、函数 82.67%、分支 83.86%。新增用例覆盖组合语义、递归更新、严格导入诊断、上下文隔离、对象合并、并发上限、超时取消及销毁清理；早期版本回归继续通过。发布门槛为 90% / 80% / 80%，报告生成在 `validator/.test/default/outputs/test/reports/`。
+该命令会安装依赖、运行 Hypium 本地测试、检查覆盖率门槛、构建 release HAR，并检查敏感信息、release 元数据、公开 API 合约和 160 KiB 体积预算。
+1.2.0 历史基线为 263 项通过；1.3.0 本轮结果见仓库 `doc/VALIDATION-1.3.0.md`。发布覆盖率门槛保持 90% / 80% / 80%，报告生成在 `validator/.test/default/outputs/test/reports/`。
 
 完整变更见 [CHANGELOG](./CHANGELOG.md)。
 从 0.x 升级请阅读 [1.0 迁移说明](./MIGRATION-1.0.md)。

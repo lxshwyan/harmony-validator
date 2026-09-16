@@ -32,7 +32,7 @@ done
 test -f "${HAR}" || { echo "Release HAR not found: ${HAR}" >&2; exit 1; }
 tar -tzf "${HAR}" | rg -q '^package/Index\.d\.ets$'
 tar -tzf "${HAR}" | rg -q '^package/lite\.d\.ets$'
-for entry in interop execution composition form; do
+for entry in interop execution composition form safety collections; do
   tar -tzf "${HAR}" | rg -q "^package/${entry}\\.d\\.ets$"
   if rg -n 'rules/registerAll|src/main/ets/index' "${ROOT_DIR}/validator/${entry}.ets"; then
     echo "Optional entry ${entry} must not load the main factory." >&2
@@ -54,6 +54,19 @@ done
 for symbol in DeepPartialContext DeepPartialSchema deepPartialSchema; do
   tar -xOzf "${HAR}" package/composition.d.ets | rg -q "\\b${symbol}\\b" || {
     echo "Composition entry missing symbol: ${symbol}" >&2
+    exit 1
+  }
+done
+
+for symbol in InputLimits inspectInput guarded; do
+  tar -xOzf "${HAR}" package/safety.d.ets | rg -q "\\b${symbol}\\b" || {
+    echo "Safety entry missing symbol: ${symbol}" >&2
+    exit 1
+  }
+done
+for symbol in UniqueKey UniqueByOptions uniqueBy; do
+  tar -xOzf "${HAR}" package/collections.d.ets | rg -q "\\b${symbol}\\b" || {
+    echo "Collections entry missing symbol: ${symbol}" >&2
     exit 1
   }
 done

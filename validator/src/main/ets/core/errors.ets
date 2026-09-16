@@ -114,7 +114,7 @@ export function validateValue<T>(schema: AnySchema<T>, value: Object | null | un
 
 /** 带错误上限与协作式取消的异步入口。 */
 export async function validateValueAsync<T>(schema: AnySchema<T>, value: Object | null | undefined,
-  options?: ValidationOptions): Promise<ValidateResult> {
+  options?: ValidationOptions, siblings?: Record<string, Object>): Promise<ValidateResult> {
   if (options?.cancellation?.isCancelled() === true) return cancelledResult();
   const timeout = options?.timeoutMs;
   if (timeout !== undefined && (!Number.isFinite(timeout) || timeout <= 0)) {
@@ -134,7 +134,7 @@ export async function validateValueAsync<T>(schema: AnySchema<T>, value: Object 
   let result: ValidateResult;
   try {
     const configurable = schema as ConfigurableSchema<T>;
-    const task = configurable.validateAsyncWithOptions === undefined ? schema.validateAsync(value, undefined, localOptions)
+    const task = siblings !== undefined || configurable.validateAsyncWithOptions === undefined ? schema.validateAsync(value, siblings, localOptions)
       : configurable.validateAsyncWithOptions(value, localOptions);
     const tasks: Array<Promise<ValidateResult>> = [task, cancelled];
     if (timeout !== undefined) tasks.push(new Promise<ValidateResult>((resolve): void => {

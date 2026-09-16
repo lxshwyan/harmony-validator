@@ -1,4 +1,6 @@
 import { AnySchema, ValidateResult } from '../core/types';
+import { ValidationCancellationToken, validateValueAsync } from '../core/errors';
+import { ErrorCode, issue, validationError } from '../core/i18n';
 
 /** ArkUI 字段事件触发类型。 */
 export class FormTrigger {
@@ -10,6 +12,8 @@ export class FormTrigger {
 
 /** 单字段的事件校验配置。 */
 export interface FormFieldOptions {
+  /** Per-field deadline; overrides the form default. */
+  timeoutMs?: number;
   /** 允许触发校验的事件；默认继承表单配置。 */
   triggers?: string[];
   /** change 事件的防抖毫秒数；默认继承表单配置。 */
@@ -20,6 +24,8 @@ export interface FormFieldOptions {
 
 /** FormValidator 的事件与字段配置。 */
 export interface FormValidatorOptions {
+  /** Optional positive deadline for each async field validation. */
+  timeoutMs?: number;
   /** 默认触发事件，缺省为 change。 */
   triggers?: string[];
   /** 默认 change 防抖毫秒数，缺省为 0。 */
@@ -62,6 +68,8 @@ export class FormValidator {
   private debounceResolvers: Map<string, DebounceResolver> = new Map<string, DebounceResolver>();
   private dependents: Map<string, string[]> = new Map<string, string[]>();
   private disposed: boolean = false;
+  private activeTokens: Map<string, ValidationCancellationToken> = new Map<string, ValidationCancellationToken>();
+  private submitVersion: number = 0;
 
   constructor(shape: Record<string, AnySchema>, options?: FormValidatorOptions) {
     this.shape = shape;
@@ -77,7 +85,7 @@ export class FormValidator {
   validateField(name: string, value: Object | null | undefined,
     allValues?: Record<string, Object>): string | null {
     const schema: AnySchema = this.shape[name];
-    if (schema === undefined) {
+    if (schema === undefined || this.disposed) {
       return null;
     }
     this.cancelDebounce(name);
@@ -91,7 +99,7 @@ export class FormValidator {
   /** 异步校验单个字段；过期请求不会覆盖较新的字段状态。 */
   async validateFieldAsync(name: string, value: Object | null | undefined,
     allValues?: Record<string, Object>): Promise<string | null> {
-    if (this.shape[name] === undefined) {
+    if (this.shape[name] === undefined || this.disposed) {
       return null;
     }
     this.cancelDebounce(name);
@@ -101,6 +109,7 @@ export class FormValidator {
 
   /** 整体同步校验，返回只含出错字段的 map。 */
   validateAll(values: Record<string, Object>): Record<string, string> {
+    if (this.disposed) return this.cancelledErrors();
     const errors: Record<string, string> = {};
     const keys = Object.keys(this.shape);
     for (const key of keys) {
@@ -117,6 +126,7 @@ export class FormValidator {
 
   /** 整体异步校验；顶层字段并发执行，结果按 shape 顺序归并。 */
   async validateAllAsync(values: Record<string, Object>): Promise<Record<string, string>> {
+    if (this.disposed) return this.cancelledErrors();
     const errors: Record<string, string> = {};
     const keys = Object.keys(this.shape);
     const versions: number[] = [];
@@ -125,21 +135,27 @@ export class FormValidator {
       this.cancelDebounce(key);
       versions.push(this.nextVersion(key));
       this.getMutableFieldState(key).validating = true;
-      tasks.push(this.shape[key].validateAsync(values[key], values));
+      tasks.push(this.executeField(key, values[key], values));
     }
     try {
       const results = await Promise.all(tasks);
       for (let i = 0; i < keys.length; i++) {
         const key = keys[i];
-        const result = results[i];
+        const result: ValidateResult = this.isLatest(key, versions[i]) && !this.disposed ? results[i]
+          : { valid: false, errors: [validationError(issue(ErrorCode.CANCELLED))] };
         if (!result.valid) {
           errors[key] = result.errors[0].message;
         }
-        if (this.isLatest(key, versions[i])) {
+        if (this.isLatest(key, versions[i]) && !this.disposed) {
           this.setError(key, result.valid ? null : result.errors[0].message);
         }
       }
       return errors;
+    } catch (error) {
+      for (let i = 0; i < keys.length; i++) {
+        if (this.isLatest(keys[i], versions[i])) this.nextVersion(keys[i]);
+      }
+      throw error as Error;
     } finally {
       for (let i = 0; i < keys.length; i++) {
         if (this.isLatest(keys[i], versions[i])) {
@@ -171,21 +187,24 @@ export class FormValidator {
     const state = this.getMutableFieldState(name);
     if (trigger === FormTrigger.CHANGE) {
       state.dirty = true;
+      // Invalidate immediately, even when change is not a validation trigger.
+      this.cancelDebounce(name);
+      this.nextVersion(name);
     }
     if (trigger === FormTrigger.BLUR) {
       state.touched = true;
     }
 
     let message: string | null = state.error;
+    let eventVersion = this.versions.get(name);
     if (this.shouldValidate(name, trigger)) {
       const debounceMs = trigger === FormTrigger.CHANGE ? this.getDebounceMs(name) : 0;
-      if (debounceMs > 0) {
-        message = await this.validateDebounced(name, value, allValues, debounceMs);
-      } else {
-        message = await this.validateFieldAsync(name, value, allValues);
-      }
+      const task = debounceMs > 0 ? this.validateDebounced(name, value, allValues, debounceMs)
+        : this.validateFieldAsync(name, value, allValues);
+      eventVersion = this.versions.get(name);
+      message = await task;
     }
-    if (trigger === FormTrigger.CHANGE) {
+    if (trigger === FormTrigger.CHANGE && eventVersion === this.versions.get(name)) {
       await this.validateDependents(name, allValues);
     }
     return message;
@@ -208,19 +227,25 @@ export class FormValidator {
    * handler 抛出的异常会继续向调用方传播，submitting 状态始终在 finally 中恢复。
    */
   async submit(values: Record<string, Object>, handler?: FormSubmitHandler): Promise<Record<string, string>> {
+    if (this.disposed) return this.cancelledErrors();
+    const submission = ++this.submitVersion;
     this.submitting = true;
     const keys = Object.keys(this.shape);
     for (const key of keys) {
       this.getMutableFieldState(key).touched = true;
     }
     try {
-      const errors = await this.validateAllAsync(values);
+      const validation = this.validateAllAsync(values);
+      const versions = keys.map((key: string): number => this.versions.get(key) ?? 0);
+      const errors = await validation;
+      if (submission !== this.submitVersion || this.disposed || keys.some(
+        (key: string, index: number): boolean => !this.isLatest(key, versions[index]))) return this.cancelledErrors();
       if (Object.keys(errors).length === 0 && handler !== undefined) {
         await handler(values);
       }
       return errors;
     } finally {
-      this.submitting = false;
+      if (submission === this.submitVersion) this.submitting = false;
     }
   }
 
@@ -248,6 +273,7 @@ export class FormValidator {
 
   /** 重置错误、交互状态和待执行防抖任务，之后仍可继续使用。 */
   reset(): void {
+    this.submitVersion++;
     this.clearPending();
     this.errors = {};
     this.submitting = false;
@@ -261,6 +287,7 @@ export class FormValidator {
 
   /** 页面销毁时清理定时器并使后续事件调用安全地忽略。 */
   dispose(): void {
+    this.submitVersion++;
     this.disposed = true;
     this.clearPending();
     const keys = Object.keys(this.shape);
@@ -276,7 +303,7 @@ export class FormValidator {
     const state = this.getMutableFieldState(name);
     state.validating = true;
     try {
-      const r = await this.shape[name].validateAsync(value, allValues);
+      const r = await this.executeField(name, value, allValues);
       const message = r.valid ? null : r.errors[0].message;
       if (this.isLatest(name, version) && !this.disposed) {
         this.setError(name, message);
@@ -398,7 +425,30 @@ export class FormValidator {
     const current = this.versions.get(name);
     const next = (current === undefined ? 0 : current) + 1;
     this.versions.set(name, next);
+    const token = this.activeTokens.get(name);
+    this.activeTokens.delete(name);
+    this.getMutableFieldState(name).validating = false;
+    token?.cancel();
     return next;
+  }
+
+  private cancelledErrors(): Record<string, string> {
+    const result: Record<string, string> = {};
+    result['$form'] = validationError(issue(ErrorCode.CANCELLED)).message;
+    return result;
+  }
+
+  private async executeField(name: string, value: Object | null | undefined,
+    siblings?: Record<string, Object>): Promise<ValidateResult> {
+    const token = new ValidationCancellationToken();
+    this.activeTokens.set(name, token);
+    try {
+      return await validateValueAsync(this.shape[name], value, {
+        cancellation: token, timeoutMs: this.getFieldOptions(name)?.timeoutMs ?? this.options.timeoutMs
+      }, siblings);
+    } finally {
+      if (this.activeTokens.get(name) === token) this.activeTokens.delete(name);
+    }
   }
 
   private isLatest(name: string, version: number): boolean {

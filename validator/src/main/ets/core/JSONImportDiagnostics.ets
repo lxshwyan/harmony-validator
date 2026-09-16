@@ -38,7 +38,8 @@ export function inspectJSONSchema(source: Record<string, Object> | boolean): JSO
   const supported = ['$schema', '$id', '$defs', '$ref', '$comment', 'title', 'description', 'default',
     'examples', 'deprecated', 'readOnly', 'writeOnly', 'type', 'const', 'enum', 'allOf', 'anyOf', 'oneOf',
     'minLength', 'maxLength', 'pattern', 'format', 'minimum', 'maximum', 'items', 'minItems', 'maxItems',
-    'properties', 'required', 'additionalProperties'];
+    'properties', 'required', 'additionalProperties', 'multipleOf', 'exclusiveMinimum', 'exclusiveMaximum',
+    'uniqueItems', 'contains', 'minContains', 'maxContains', 'if', 'then', 'else'];
   const add = (path: string, key: string, message: string): void => {
     diagnostics.push(new JSONSchemaDiagnostic(`${path}/${pointer(key)}`, key, message));
   };
@@ -65,6 +66,9 @@ export function inspectJSONSchema(source: Record<string, Object> | boolean): JSO
         for (const child of children as Object[]) if (loops(child, next)) return true;
       }
     }
+    for (const keyword of ['if', 'then', 'else']) {
+      if (record(node[keyword]) && loops(node[keyword], next)) return true;
+    }
     return false;
   };
   const visit = (value: Object, path: string): void => {
@@ -87,10 +91,14 @@ export function inspectJSONSchema(source: Record<string, Object> | boolean): JSO
       } else if (key === 'enum') {
         if (!Array.isArray(item) || (item as Object[]).length === 0 ||
           (item as Object[]).some((entry: Object): boolean => !scalar(entry))) add(path, key, 'Expected a non-empty array of scalar values');
-      } else if (['minLength', 'maxLength', 'minItems', 'maxItems'].indexOf(key) !== -1) {
+      } else if (['minLength', 'maxLength', 'minItems', 'maxItems', 'minContains', 'maxContains'].indexOf(key) !== -1) {
         if (typeof item !== 'number' || !Number.isInteger(item) || item < 0) add(path, key, 'Expected a non-negative integer');
-      } else if (key === 'minimum' || key === 'maximum') {
+      } else if (key === 'minimum' || key === 'maximum' || key === 'exclusiveMinimum' || key === 'exclusiveMaximum') {
         if (typeof item !== 'number' || !Number.isFinite(item)) add(path, key, 'Expected a finite number');
+      } else if (key === 'multipleOf') {
+        if (typeof item !== 'number' || !Number.isFinite(item) || item <= 0) add(path, key, 'Expected a finite positive number');
+      } else if (key === 'uniqueItems') {
+        if (typeof item !== 'boolean') add(path, key, 'Expected a boolean');
       } else if (key === 'pattern') {
         if (typeof item !== 'string') add(path, key, 'Expected a regular expression string');
         else { try { new RegExp(item); } catch (_error) { add(path, key, 'Invalid regular expression'); } }
@@ -103,7 +111,7 @@ export function inspectJSONSchema(source: Record<string, Object> | boolean): JSO
           const children = item as Record<string, Object>;
           for (const name of Object.keys(children)) visit(children[name], `${path}/${key}/${pointer(name)}`);
         }
-      } else if (key === 'items') visit(item, `${path}/items`);
+      } else if (['items', 'contains', 'if', 'then', 'else'].indexOf(key) !== -1) visit(item, `${path}/${key}`);
       else if (key === 'additionalProperties') {
         if (typeof item !== 'boolean') {
           visit(item, `${path}/additionalProperties`);

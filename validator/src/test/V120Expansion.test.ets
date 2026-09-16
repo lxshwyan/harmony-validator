@@ -98,10 +98,10 @@ export default function v120ExpansionTest(): void {
       expect(patch.parse(inherited).success).assertFalse();
     });
     it('reports nested unsupported keywords with escaped pointers', 0, (): void => {
-      const input = JSON.parse('{"properties":{"a/b~":{"type":"number","multipleOf":2}}}') as Record<string, Object>;
+      const input = JSON.parse('{"properties":{"a/b~":{"type":"number","unsupportedKeyword":2}}}') as Record<string, Object>;
       const issues = inspectJSONSchema(input);
       expect(issues.length).assertEqual(1);
-      expect(issues[0].path).assertEqual('#/properties/a~1b~0/multipleOf');
+      expect(issues[0].path).assertEqual('#/properties/a~1b~0/unsupportedKeyword');
       const received: JSONSchemaDiagnostic[] = [];
       fromJSONSchema(input, { onDiagnostic: (item: JSONSchemaDiagnostic): void => { received.push(item); } });
       expect(received.length).assertEqual(1);

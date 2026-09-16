@@ -1,4 +1,5 @@
 import { ValidationOptions } from './errors';
+import { JSONNumberKeywords, JSONArrayKeywords, JSONConditional } from './JSONExtended';
 import { inspectJSONSchema, JSONSchemaImportOptions, JSONSchemaImportError } from './JSONImportDiagnostics';
 import { AnySchema, ParseResult, SchemaDescriptor, SchemaRuleDescriptor, ValidateResult } from './types';
 import { JSONApplicator, JSONTypeGuard, JSONStringKeywords } from './JSONApplicator';
@@ -390,6 +391,18 @@ class JSONSchemaImportContext {
     if (source === true) return erase<Object | null>(new AnyValueSchema());
     const node = source as Record<string, Object>;
     const schemas: Array<AnySchema<Object>> = [];
+    if (node['multipleOf'] !== undefined || node['exclusiveMinimum'] !== undefined || node['exclusiveMaximum'] !== undefined) {
+      schemas.push(new JSONNumberKeywords(node));
+    }
+    if (node['uniqueItems'] !== undefined || node['contains'] !== undefined) {
+      schemas.push(new JSONArrayKeywords(node, node['contains'] === undefined ? undefined
+        : this.convert(node['contains'] as Record<string, Object>)));
+    }
+    if (node['if'] !== undefined) {
+      schemas.push(new JSONConditional(this.convert(node['if'] as Record<string, Object>),
+        node['then'] === undefined ? undefined : this.convert(node['then'] as Record<string, Object>),
+        node['else'] === undefined ? undefined : this.convert(node['else'] as Record<string, Object>)));
+    }
     if (node['minLength'] !== undefined || node['maxLength'] !== undefined || node['pattern'] !== undefined) {
       schemas.push(new JSONStringKeywords(node));
     }

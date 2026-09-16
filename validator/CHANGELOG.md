@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.3.0 (2026-09-16)
+
+- FormValidator connects field cancellation/deadlines to asynchronous rules; changes, resets and disposal settle obsolete callers, and superseded events cannot dispatch stale dependencies.
+- Concurrent submissions preserve the latest busy state; cancelled validation does not invoke business submit handlers, and failed whole-form validation cancels its outstanding peers.
+- Optional `safety`: iterative `inspectInput` and `guarded` preflight with depth/node budgets and ancestor-cycle detection.
+- Optional `collections`: `uniqueBy` checks parsed array keys and returns indexed errors, with custom messages and path suffixes.
+- JSON Schema import: decimal `multipleOf`, numeric exclusive bounds, structural `uniqueItems`, `contains`/count bounds, and `if`/`then`/`else`, including strict diagnostics.
+- New bilingual error codes; existing main exports remain compatible. No claim of full JSON Schema compliance or arbitrary-precision numeric input.
+
 ## 1.2.0
 
 - Lazy deepPartial 使用单次转换缓存支持递归/相互递归；判别联合局部更新保留判别字段检查

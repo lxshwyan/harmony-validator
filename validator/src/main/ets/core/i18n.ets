@@ -61,6 +61,15 @@ export class ErrorCode {
   static readonly CONTEXT: string = 'context';
   static readonly ONE_OF: string = 'one_of';
   static readonly TIMEOUT: string = 'timeout';
+  static readonly INPUT_DEPTH: string = 'input_depth';
+  static readonly INPUT_NODES: string = 'input_nodes';
+  static readonly INPUT_CYCLE: string = 'input_cycle';
+  static readonly UNIQUE_BY: string = 'unique_by';
+  static readonly MULTIPLE_OF: string = 'multiple_of';
+  static readonly EXCLUSIVE_MINIMUM: string = 'exclusive_minimum';
+  static readonly EXCLUSIVE_MAXIMUM: string = 'exclusive_maximum';
+  static readonly UNIQUE_ITEMS: string = 'unique_items';
+  static readonly CONTAINS: string = 'contains';
 }
 
 export type MessageCatalog = Record<string, string>;
@@ -132,6 +141,15 @@ const ZH_CN: MessageCatalog = {
   'context': '业务上下文校验未通过',
   'one_of': '必须恰好满足一个候选规则',
   'timeout': '校验超时',
+  'input_depth': '输入嵌套深度超过限制',
+  'input_nodes': '输入节点数量超过限制',
+  'input_cycle': '输入存在循环引用',
+  'unique_by': '字段值重复',
+  'multiple_of': '数值不是指定步长的整数倍',
+  'exclusive_minimum': '数值必须大于下界',
+  'exclusive_maximum': '数值必须小于上界',
+  'unique_items': '数组元素重复',
+  'contains': '匹配的数组元素数量不满足要求',
 };
 
 const EN_US: MessageCatalog = {
@@ -194,6 +212,15 @@ const EN_US: MessageCatalog = {
   'context': 'Validation context rule failed',
   'one_of': 'Expected exactly one matching schema',
   'timeout': 'Validation timed out',
+  'input_depth': 'Input depth limit exceeded',
+  'input_nodes': 'Input node limit exceeded',
+  'input_cycle': 'Input contains a cycle',
+  'unique_by': 'Duplicate field value',
+  'multiple_of': 'Number is not a multiple of the specified value',
+  'exclusive_minimum': 'Number must exceed the lower bound',
+  'exclusive_maximum': 'Number must be below the upper bound',
+  'unique_items': 'Array items must be unique',
+  'contains': 'Matching array item count is out of bounds',
 };
 
 /** 全局语言配置。默认 zh-CN；缺失词条回退到 zh-CN。 */
