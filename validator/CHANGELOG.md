@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.1 (2026-10-17)
+
+- Upgrade the test dependency to `@ohos/hypium` 1.0.29 while retaining all 293 regression tests and existing coverage thresholds.
+- Verify packaged-HAR consumers with both API 12 and API 23 target semantics on the current SDK.
+- Add a repository-root MIT license so GitHub and source consumers can detect the package license.
+- Keep the 1.3 public API unchanged; generated declaration annotations remain owned by the DevEco toolchain.
+
 ## 1.3.0 (2026-09-16)
 
 - FormValidator connects field cancellation/deadlines to asynchronous rules; changes, resets and disposal settle obsolete callers, and superseded events cannot dispatch stale dependencies.

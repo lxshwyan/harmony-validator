@@ -44,7 +44,7 @@ schema.validate({ 'name': '张', 'phone': '123', 'age': 16 });
 ./scripts/verify.sh
 ```
 
-当前版本为 `1.3.0`，新增字段取消/超时贯通、输入保护、按字段去重与 JSON Schema 数值/数组/条件增强。见 [1.3.0 指南](doc/ADVANCED-1.3.0.md)和 [1.3.0 发布说明](doc/RELEASE-1.3.0.md)。OHPM 可用性以平台审核结果为准。
+当前版本为 `1.3.1`。本次补丁增加 API 12/API 23 消费构建门禁、升级测试依赖并补齐仓库根许可证，保持 1.3 公共 API 不变。见 [1.3.1 发布说明](doc/RELEASE-1.3.1.md)与 [1.3.0 功能指南](doc/ADVANCED-1.3.0.md)。OHPM 可用性以平台审核结果为准。
 
 ## 链接
 

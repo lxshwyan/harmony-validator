@@ -5,6 +5,6 @@
   "description": "Demo app for @hmkit/validator",
   "dependencies": {},
   "devDependencies": {
-    "@ohos/hypium": "1.0.25"
+    "@ohos/hypium": "1.0.29"
   }
 }

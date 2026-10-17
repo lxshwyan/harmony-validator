@@ -10,6 +10,15 @@
         "buildOption": {
           "strictMode": { "useNormalizedOHMUrl": true }
         }
+      },
+      {
+        "name": "current",
+        "compatibleSdkVersion": "5.0.0(12)",
+        "targetSdkVersion": "6.1.0(23)",
+        "runtimeOS": "HarmonyOS",
+        "buildOption": {
+          "strictMode": { "useNormalizedOHMUrl": true }
+        }
       }
     ],
     "buildModeSet": [{ "name": "debug" }, { "name": "release" }]
@@ -18,7 +27,7 @@
     {
       "name": "entry",
       "srcPath": "./entry",
-      "targets": [{ "name": "default", "applyToProducts": ["default"] }]
+      "targets": [{ "name": "default", "applyToProducts": ["default", "current"] }]
     }
   ]
 }

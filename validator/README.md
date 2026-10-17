@@ -2,7 +2,11 @@
 
 > 鸿蒙 ArkTS 声明式表单/数据校验库。链式 API，内置手机号、身份证、银行卡等**中国本地化规则**，开箱即用。
 
-## 1.3.0
+## 1.3.1
+
+1.3.1 是兼容性维护版本：增加 API 12/API 23 双目标消费构建，测试依赖升级至 Hypium 1.0.29，并补齐仓库根许可证。公共 API 与 1.3.0 相同。
+
+### 1.3.0 能力
 
 - 表单字段异步取消贯通，支持全局/字段 `timeoutMs`；输入替换、reset/dispose 通知旧任务取消。
 - `@hmkit/validator/safety`：`guarded(schema, { maxDepth, maxNodes })`、`inspectInput`，显式开启输入限额与循环检测。
@@ -583,7 +587,7 @@ interface ParseResult<T> {
 
 ## 版本
 
-当前版本 `1.3.0`。演进路线：
+当前版本 `1.3.1`。演进路线：
 
 - `0.1.0` MVP：链式 API + 中国本地化规则 + 对象校验
 - `0.2.0`：数组校验、异步校验、深层嵌套、ArkUI 表单联动 `FormValidator`
@@ -595,6 +599,9 @@ interface ParseResult<T> {
 - `0.8.0`：Schema 元数据、结构描述/序列化、JSON Schema 转换与不可表达能力策略
 - `1.0.0`：record/tuple/判别联合、对象组合与未知字段策略、安全转换、版本化描述、引用安全和发布质量门禁
 - `1.1.0`：递归/交叉/条件 Schema、上下文、Codec、结构化错误、批量/取消、文档恢复、JSON Schema 导入与 18 个模块化规则
+- `1.2.0`：递归局部更新、严格导入诊断、上下文贯穿与异步执行控制
+- `1.3.0`：字段取消/超时、输入保护、集合去重与 JSON Schema 数值/数组/条件增强
+- `1.3.1`：API 12/API 23 消费构建、测试依赖与许可证元数据维护
 
 ## 开发与验证
 
@@ -603,7 +610,7 @@ interface ParseResult<T> {
 ```
 
 该命令会安装依赖、运行 Hypium 本地测试、检查覆盖率门槛、构建 release HAR，并检查敏感信息、release 元数据、公开 API 合约和 160 KiB 体积预算。
-1.2.0 历史基线为 263 项通过；1.3.0 本轮结果见仓库 `doc/VALIDATION-1.3.0.md`。发布覆盖率门槛保持 90% / 80% / 80%，报告生成在 `validator/.test/default/outputs/test/reports/`。
+1.3.1 的发布结果见仓库 `doc/VALIDATION-1.3.1.md`。发布覆盖率门槛保持 90% / 80% / 80%，报告生成在 `validator/.test/default/outputs/test/reports/`。
 
 完整变更见 [CHANGELOG](./CHANGELOG.md)。
 从 0.x 升级请阅读 [1.0 迁移说明](./MIGRATION-1.0.md)。

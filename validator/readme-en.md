@@ -2,7 +2,11 @@
 
 > A declarative form / data validation library for HarmonyOS (ArkTS). Chainable API with built-in **China-localized rules** (mobile number, ID card, bank card, and more) — ready to use out of the box.
 
-## 1.3.0
+## 1.3.1
+
+1.3.1 is a compatibility maintenance release. It adds API 12/API 23 consumer builds, upgrades the test dependency to Hypium 1.0.29, and adds a repository-root license. Its public API is unchanged from 1.3.0.
+
+### 1.3.0 capabilities
 
 - Form field cancellation and global/per-field `timeoutMs`; replacement inputs, reset and disposal notify obsolete tasks.
 - `@hmkit/validator/safety`: opt-in `guarded(schema, { maxDepth, maxNodes })` and `inspectInput` for bounded traversal and cycle detection.
@@ -564,7 +568,7 @@ interface ParseResult<T> {
 
 ## Version
 
-Current version: `1.3.0`. Roadmap:
+Current version: `1.3.1`. Roadmap:
 
 - `0.1.0` MVP: chainable API + China-localized rules + object validation
 - `0.2.0`: array validation, async validation, deep nesting, ArkUI form binding `FormValidator`
@@ -576,6 +580,9 @@ Current version: `1.3.0`. Roadmap:
 - `0.8.0`: schema metadata, structural serialization, JSON Schema conversion, and explicit unsupported-rule policies
 - `1.0.0`: record/tuple/discriminated unions, object composition and unknown-key modes, safe coercion, versioned descriptors, reference safety, and release quality gates
 - `1.1.0`: recursive/intersection/conditional schemas, context, codecs, structured errors, batch/cancellation, document restoration, JSON Schema import, and 18 modular rules
+- `1.2.0`: recursive partials, strict import diagnostics, context propagation, and asynchronous execution controls
+- `1.3.0`: field cancellation/deadlines, input guards, collection uniqueness, and numeric/array/conditional JSON Schema import
+- `1.3.1`: API 12/API 23 consumer builds, test dependency maintenance, and root license metadata
 
 ## Development and verification
 
@@ -584,7 +591,7 @@ Current version: `1.3.0`. Roadmap:
 ```
 
 This installs dependencies, runs local Hypium tests, enforces coverage thresholds, builds a release HAR, and checks publishing credentials, release metadata, the public API contract, and a 160 KiB package-size budget.
-The historical 1.2.0 baseline passed 263 tests. See repository `doc/VALIDATION-1.3.0.md` for this development version's results. Coverage thresholds remain 90% / 80% / 80%; reports are generated under `validator/.test/default/outputs/test/reports/`.
+See repository `doc/VALIDATION-1.3.1.md` for the 1.3.1 release results. Coverage thresholds remain 90% / 80% / 80%; reports are generated under `validator/.test/default/outputs/test/reports/`.
 
 See the full [CHANGELOG](./CHANGELOG.md).
 For upgrades from 0.x, see [Migrating to 1.0](./MIGRATION-1.0.md).
