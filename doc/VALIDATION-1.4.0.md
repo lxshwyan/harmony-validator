@@ -40,8 +40,8 @@
 
 ## 发布状态
 
-- OHPM：预发布校验已通过，正式 publish 待执行；截至发布前查询，公开 latest 为 1.3.1。
-- GitHub / Gitee：1.4.0 发布源码、标签和下载产物待同步。
+- OHPM：预发布校验已通过；正式 publish 在本机加密私钥签名阶段未成功，空口令被拒绝（ERR_OSSL_BAD_DECRYPT），客户端重试已停止，没有成功提交响应。需要在交互终端执行 `bash scripts/publish-local.sh` 并输入签名口令；截至当前查询，公开 latest 为 1.3.1，不能宣称 1.4.0 已上架。
+- GitHub / Gitee：1.4.0 源码与标签正在同步；[GitHub Release](https://github.com/lxshwyan/harmony-validator/releases/tag/v1.4.0) 提供 HAR 与 SHA256SUMS，实际状态以该页面为准。
 - prepublish 只校验包内容，不表示发布认证、平台审核或公开可安装已完成，见[华为官方说明](https://developer.huawei.com/consumer/cn/doc/doccenter-deveco-studio/ide-hmos-ohpm-prepublish)。
 
 ## 使用范围
