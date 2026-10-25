@@ -40,8 +40,9 @@
 
 ## 发布状态
 
-- OHPM：预发布校验已通过；正式 publish 在本机加密私钥签名阶段未成功，空口令被拒绝（ERR_OSSL_BAD_DECRYPT），客户端重试已停止，没有成功提交响应。需要在交互终端执行 `bash scripts/publish-local.sh` 并输入签名口令；截至当前查询，公开 latest 为 1.3.1，不能宣称 1.4.0 已上架。
-- GitHub / Gitee：1.4.0 源码与标签正在同步；[GitHub Release](https://github.com/lxshwyan/harmony-validator/releases/tag/v1.4.0) 提供 HAR 与 SHA256SUMS，实际状态以该页面为准。
+- OHPM：预发布校验已通过；签名私钥需要本机交互输入口令，上传尚未成功提交。可在交互终端执行 `bash scripts/publish-local.sh` 并输入口令；截至当前查询，公开 latest 为 1.3.1，且没有 1.4.0，不能宣称已上架。
+- GitHub / Gitee：1.4.0 源码与标签均已同步；两站 v1.4.0 均指向 `a8128d426589769c397f631a4be07f1830c2a714`。[GitHub Release](https://github.com/lxshwyan/harmony-validator/releases/tag/v1.4.0) 已提供 HAR 与 SHA256SUMS。
+- 从公开下载地址重新下载 HAR，SHA-256 与本地发布包一致，cmp 字节比对通过。自托管 runner 当前无在线实例，标签触发的排队发布已请求取消，避免后续与本机交互发布重复。
 - prepublish 只校验包内容，不表示发布认证、平台审核或公开可安装已完成，见[华为官方说明](https://developer.huawei.com/consumer/cn/doc/doccenter-deveco-studio/ide-hmos-ohpm-prepublish)。
 
 ## 使用范围
