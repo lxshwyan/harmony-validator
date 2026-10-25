@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.0 (2026-10-25)
+
+- Add the optional `@hmkit/validator/reuse` entry with lazy `SchemaFactory.create/derive`; builders must allocate fresh mutable children. Existing APIs remain compatible.
+- Accept nullable outputs in object shapes, including asynchronous parsing.
+- Add repository-only model/Schema generation with drift checks, a JS/TS Standard Schema v1 bridge, and an RCP cancellation example; these tools are outside the HAR.
+- Verify 299 Hypium cases, API12/API23 consumers, and emulator HTTP cancellation with server-side disconnect evidence. Physical devices remain unverified.
+- Add GitHub and Gitee source links to bilingual package documentation.
+
 ## 1.3.1 (2026-10-17)
 
 - Upgrade the test dependency to `@ohos/hypium` 1.0.29 while retaining all 293 regression tests and existing coverage thresholds.

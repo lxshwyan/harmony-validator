@@ -4,11 +4,17 @@
 
 开源仓库：[GitHub](https://github.com/lxshwyan/harmony-validator) · [Gitee](https://gitee.com/lxsh_wyan/harmony-validator)
 
-开发中的新增能力与边界见[行为说明](https://gitee.com/lxsh_wyan/harmony-validator/blob/master/doc/BEHAVIOR-COMPATIBILITY.md)，尚未发布到 OHPM。
+## 1.4.0
 
-## 1.3.1
+新增 `@hmkit/validator/reuse` 的 `SchemaFactory`，每次重新构造规则再派生；修复对象 shape 的 nullable 输出声明。旧链式 API 保持可变，不提供任意深拷贝。用法与仓库工具见[行为说明](https://gitee.com/lxsh_wyan/harmony-validator/blob/master/doc/BEHAVIOR-COMPATIBILITY.md)。模型生成、JS/TS 标准桥接及 RCP 示例不打入 HAR。
 
-1.3.1 是兼容性维护版本：增加 API 12/API 23 双目标消费构建，测试依赖升级至 Hypium 1.0.29，并补齐仓库根许可证。公共 API 与 1.3.0 相同。
+```typescript
+import { liteV, StringSchema } from '@hmkit/validator/lite';
+import { SchemaFactory } from '@hmkit/validator/reuse';
+const names = new SchemaFactory((): StringSchema => liteV.string().required());
+const shortNames = names.derive((schema: StringSchema): StringSchema => schema.max(8));
+shortNames.create().validate('Alice');
+```
 
 ### 1.3.0 能力
 
@@ -46,7 +52,7 @@
 ## 安装
 
 ```bash
-ohpm install @hmkit/validator
+ohpm install @hmkit/validator@1.4.0
 ```
 
 ## 快速上手
@@ -591,21 +597,7 @@ interface ParseResult<T> {
 
 ## 版本
 
-当前版本 `1.3.1`。演进路线：
-
-- `0.1.0` MVP：链式 API + 中国本地化规则 + 对象校验
-- `0.2.0`：数组校验、异步校验、深层嵌套、ArkUI 表单联动 `FormValidator`
-- `0.3.0`：跨字段校验 `.refine()`、条件/可选 `.optional()`/`.requiredWhen()`、新类型 `v.boolean()`/`v.enumOf()`/`v.date()`、新增中国规则（固话/VIN/IPv4/中文姓名/QQ/微信/URL）
-- `0.4.0`：泛型 Schema、整表异步校验、严格 ISO 日期、VIN 校验位、正确性修复与发布安全基线
-- `0.5.0`：错误码、国际化、字段 label、literal/union、nullable/default/transform 与类型化 parse
-- `0.6.0`：ArkUI 防抖异步校验、竞态保护、触发策略、提交/touched/dirty 状态与字段依赖
-- `0.7.0`：中国规则按需导入、轻量入口、同步/异步规则插件和扩展机制
-- `0.8.0`：Schema 元数据、结构描述/序列化、JSON Schema 转换与不可表达能力策略
-- `1.0.0`：record/tuple/判别联合、对象组合与未知字段策略、安全转换、版本化描述、引用安全和发布质量门禁
-- `1.1.0`：递归/交叉/条件 Schema、上下文、Codec、结构化错误、批量/取消、文档恢复、JSON Schema 导入与 18 个模块化规则
-- `1.2.0`：递归局部更新、严格导入诊断、上下文贯穿与异步执行控制
-- `1.3.0`：字段取消/超时、输入保护、集合去重与 JSON Schema 数值/数组/条件增强
-- `1.3.1`：API 12/API 23 消费构建、测试依赖与许可证元数据维护
+当前版本 `1.4.0`。历史版本与演进记录见 [CHANGELOG](./CHANGELOG.md)。
 
 ## 开发与验证
 
@@ -614,7 +606,7 @@ interface ParseResult<T> {
 ```
 
 该命令会安装依赖、运行 Hypium 本地测试、检查覆盖率门槛、构建 release HAR，并检查敏感信息、release 元数据、公开 API 合约和 160 KiB 体积预算。
-1.3.1 的发布结果见仓库 `doc/VALIDATION-1.3.1.md`。发布覆盖率门槛保持 90% / 80% / 80%，报告生成在 `validator/.test/default/outputs/test/reports/`。
+1.4.0 的发布结果见仓库 `doc/VALIDATION-1.4.0.md`。发布覆盖率门槛保持 90% / 80% / 80%，报告生成在 `validator/.test/default/outputs/test/reports/`。
 
 完整变更见 [CHANGELOG](./CHANGELOG.md)。
 从 0.x 升级请阅读 [1.0 迁移说明](./MIGRATION-1.0.md)。

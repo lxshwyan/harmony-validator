@@ -8,7 +8,7 @@
 ## 安装
 
 ```bash
-ohpm i @hmkit/validator
+ohpm i @hmkit/validator@1.4.0
 ```
 
 ## 快速上手
@@ -40,7 +40,7 @@ schema.validate({ 'name': '张', 'phone': '123', 'age': 16 });
 
 ## 开发验证
 
-当前源码基于 1.3.1，新增 SchemaFactory 可选入口、模型/Schema 单一来源生成工具、JS/TS 标准接口桥接和真实 HTTP 取消验证。尚未发布新版本；用法和限制见 [行为与兼容性说明](doc/BEHAVIOR-COMPATIBILITY.md)。
+1.4.0 新增 HAR 可选入口 SchemaFactory，并修复 nullable 对象 shape 声明。仓库另提供模型/Schema 单一来源生成工具、JS/TS 标准接口桥接和真实 HTTP 取消示例；这些工具与示例不打入 HAR。用法和限制见 [行为与兼容性说明](doc/BEHAVIOR-COMPATIBILITY.md)。
 
 ```bash
 ./scripts/verify.sh
@@ -48,7 +48,7 @@ schema.validate({ 'name': '张', 'phone': '123', 'age': 16 });
 
 验证包含工具层的锁定开发依赖安装、生成文件一致性检查、真实回环 HTTP、Hypium、HAR 门槛以及 API12/API23 消费编译。模拟器网络验收另见 [开发验证记录](doc/VALIDATION-STABILITY.md)，真机未验收。
 
-当前版本为 `1.3.1`。本次补丁增加 API 12/API 23 消费构建门禁、升级测试依赖并补齐仓库根许可证，保持 1.3 公共 API 不变。见 [1.3.1 发布说明](doc/RELEASE-1.3.1.md)与 [1.3.0 功能指南](doc/ADVANCED-1.3.0.md)。OHPM 可用性以平台审核结果为准。
+当前源码版本为 `1.4.0`，见 [1.4.0 发布说明](doc/RELEASE-1.4.0.md)。OHPM 可用性以平台审核与公开注册表结果为准；已有 1.3 系列 API 保持兼容。
 
 ## 链接
 

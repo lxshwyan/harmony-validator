@@ -1,12 +1,12 @@
 # 行为、兼容性与安全复用
 
-本文对应 `codex/validator-stability` 开发分支，以 1.3.1 为基础。新增 API 尚未发布到 OHPM；安装已发布的 1.3.1 不会获得本分支的新入口。
+本文对应 1.4.0，以 1.3.1 为基础。`reuse` 新入口需要安装 1.4.0；1.3.1 不包含该入口。OHPM 可用性以公开注册表为准，发布验证见 [1.4.0 验证报告](VALIDATION-1.4.0.md)。
 
 ## 兼容性证据如何理解
 
 | 项目 | 当前证据 |
 | --- | --- |
-| 库基线 | 1.3.1；本分支保留原 83 个主入口符号 |
+| 库版本 | 1.4.0；保留原 83 个主入口符号 |
 | 最低兼容配置 | API12，来自项目配置，不等于 API12 设备验收 |
 | 工具链 | DevEco Studio 6.1.0，DS-243.24978.46.36.610850；HarmonyOS SDK 6.1.0.105 / API23 |
 | 消费编译 | 同一 DevEco SDK 分别按 API12 / API23 目标构建；主入口与按需入口均检查 |
@@ -41,7 +41,7 @@
 
 不要从同一个可变字符串实例分别调用 `.max(8)` 和 `.max(32)`，期望得到独立的两份规则。稳定版可直接使用返回新 Schema 的构造函数。
 
-开发分支新增可选入口 `@hmkit/validator/reuse`：
+1.4.0 新增可选入口 `@hmkit/validator/reuse`：
 
 ```typescript
 import { liteV, StringSchema } from '@hmkit/validator/lite';

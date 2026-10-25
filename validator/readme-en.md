@@ -4,11 +4,17 @@
 
 Source: [GitHub](https://github.com/lxshwyan/harmony-validator) · [Gitee](https://gitee.com/lxsh_wyan/harmony-validator)
 
-Unreleased additions and limits: [behavior notes](https://github.com/lxshwyan/harmony-validator/blob/master/doc/BEHAVIOR-COMPATIBILITY.md). These additions are not on OHPM yet.
+## 1.4.0
 
-## 1.3.1
+Adds `SchemaFactory` through `@hmkit/validator/reuse` and fixes nullable object-shape declarations. Factories rebuild rules before deriving; existing chainable APIs remain mutable. This is not arbitrary cloning. See [behavior notes](https://github.com/lxshwyan/harmony-validator/blob/master/doc/BEHAVIOR-COMPATIBILITY.md). Model generation, the JS/TS standard bridge and RCP examples remain repository tools outside the HAR.
 
-1.3.1 is a compatibility maintenance release. It adds API 12/API 23 consumer builds, upgrades the test dependency to Hypium 1.0.29, and adds a repository-root license. Its public API is unchanged from 1.3.0.
+```typescript
+import { liteV, StringSchema } from '@hmkit/validator/lite';
+import { SchemaFactory } from '@hmkit/validator/reuse';
+const names = new SchemaFactory((): StringSchema => liteV.string().required());
+const shortNames = names.derive((schema: StringSchema): StringSchema => schema.max(8));
+shortNames.create().validate('Alice');
+```
 
 ### 1.3.0 capabilities
 
@@ -46,7 +52,7 @@ Write validations like you do with `zod` / `yup`, but with high-frequency Chines
 ## Installation
 
 ```bash
-ohpm install @hmkit/validator
+ohpm install @hmkit/validator@1.4.0
 ```
 
 ## Quick Start
@@ -572,21 +578,7 @@ interface ParseResult<T> {
 
 ## Version
 
-Current version: `1.3.1`. Roadmap:
-
-- `0.1.0` MVP: chainable API + China-localized rules + object validation
-- `0.2.0`: array validation, async validation, deep nesting, ArkUI form binding `FormValidator`
-- `0.3.0`: cross-field `.refine()`, conditional/optional `.optional()`/`.requiredWhen()`, new types `v.boolean()`/`v.enumOf()`/`v.date()`, more China rules (landline/VIN/IPv4/Chinese name/QQ/WeChat/URL)
-- `0.4.0`: generic schemas, async whole-form validation, strict ISO dates, VIN checksums, correctness fixes, and release security
-- `0.5.0`: error codes, localization, labels, literal/union, nullable/default/transform, and typed parsing
-- `0.6.0`: ArkUI debounce, async race protection, validation triggers, submitting/touched/dirty state, and field dependencies
-- `0.7.0`: independently importable China rules, a lite entry, and sync/async rule plugins
-- `0.8.0`: schema metadata, structural serialization, JSON Schema conversion, and explicit unsupported-rule policies
-- `1.0.0`: record/tuple/discriminated unions, object composition and unknown-key modes, safe coercion, versioned descriptors, reference safety, and release quality gates
-- `1.1.0`: recursive/intersection/conditional schemas, context, codecs, structured errors, batch/cancellation, document restoration, JSON Schema import, and 18 modular rules
-- `1.2.0`: recursive partials, strict import diagnostics, context propagation, and asynchronous execution controls
-- `1.3.0`: field cancellation/deadlines, input guards, collection uniqueness, and numeric/array/conditional JSON Schema import
-- `1.3.1`: API 12/API 23 consumer builds, test dependency maintenance, and root license metadata
+Current version: `1.4.0`. See [CHANGELOG](./CHANGELOG.md) for version history.
 
 ## Development and verification
 
@@ -595,7 +587,7 @@ Current version: `1.3.1`. Roadmap:
 ```
 
 This installs dependencies, runs local Hypium tests, enforces coverage thresholds, builds a release HAR, and checks publishing credentials, release metadata, the public API contract, and a 160 KiB package-size budget.
-See repository `doc/VALIDATION-1.3.1.md` for the 1.3.1 release results. Coverage thresholds remain 90% / 80% / 80%; reports are generated under `validator/.test/default/outputs/test/reports/`.
+See repository `doc/VALIDATION-1.4.0.md` for the 1.4.0 release results. Coverage thresholds remain 90% / 80% / 80%; reports are generated under `validator/.test/default/outputs/test/reports/`.
 
 See the full [CHANGELOG](./CHANGELOG.md).
 For upgrades from 0.x, see [Migrating to 1.0](./MIGRATION-1.0.md).
