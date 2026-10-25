@@ -9,6 +9,10 @@ INSTALLED="$(find oh_modules/.ohpm -type f -path '*/@hmkit/validator/ets/modules
 test -n "${INSTALLED}"
 test "$(tar -xOzf "${HAR}" package/ets/modules.abc | shasum -a 256 | awk '{print $1}')" = "$(shasum -a 256 "${INSTALLED}" | awk '{print $1}')"
 mkdir -p entry/src/main/ets/pages build
+"${NODE_HOME}/bin/node" "${TASK_ROOT}/scripts/model-codegen.mjs" "${TASK_ROOT}/example/models/order.model.json" "${TASK_ROOT}/example/models/Order.generated.ets" --check
+cp "${TASK_ROOT}/example/models/Order.generated.ets" entry/src/main/ets/pages/Order.generated.ets
+cp "${TASK_ROOT}/example/HttpValidation.ets" entry/src/main/ets/pages/HttpValidation.ets
+cp "${TASK_ROOT}/scripts/consumer-network-scenarios.ets" entry/src/main/ets/pages/NetworkScenarios.ets
 cp "${TASK_ROOT}/scripts/consumer-scenarios.ets" entry/src/main/ets/pages/ConsumerScenarios.ets
 for PRODUCT in default current; do
   for MODE in main lite; do

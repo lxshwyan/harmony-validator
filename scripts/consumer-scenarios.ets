@@ -5,6 +5,10 @@ import { ValidationOptions, ValidationCancellationToken, validateValueAsync } fr
 import { fromJSONSchema, inspectJSONSchema } from '@hmkit/validator/interop';
 import { guarded, inspectInput } from '@hmkit/validator/safety';
 import { uniqueBy } from '@hmkit/validator/collections';
+import { SchemaFactory } from '@hmkit/validator/reuse';
+import { StringSchema } from '@hmkit/validator/lite';
+import { createOrderSchema, createOrderPatchSchema, OrderInput } from './Order.generated';
+import { createHttpRule, HttpValidationStats } from './HttpValidation';
 
 /** Deterministic remote-request mock. Real adapters should abort their request in onCancel. */
 export function remoteCheck(value: string, options?: ValidationOptions): Promise<boolean> {
@@ -17,6 +21,21 @@ export function remoteCheck(value: string, options?: ValidationOptions): Promise
 
 /** Compiled against the packaged HAR, not project source files. */
 export async function runFeatureScenarios(pageToken: ValidationCancellationToken): Promise<boolean> {
+  const factory = new SchemaFactory<StringSchema>((): StringSchema => liteV.string().required());
+  if (factory.derive((s: StringSchema): StringSchema => s.max(2)).create().validate('long').valid) return false;
+  if (!factory.derive((s: StringSchema): StringSchema => s.max(20)).create().validate('long').valid) return false;
+  const row: Record<string, Object> = { 'sku': 'A', 'price': 1 };
+  const order: OrderInput = { customer: ' Alice ', note: null, quantity: 2,
+    referenceLength: 'abc', items: [{ sku: 'A', price: 1 }] };
+  const parsedOrder = createOrderSchema().parse(order);
+  if (!parsedOrder.success || parsedOrder.value?.referenceLength !== 3 || parsedOrder.value?.currency !== 'CNY') return false;
+  const patch: Record<string, Object> = { 'quantity': 3 };
+  const parsedPatch = createOrderPatchSchema().parse(patch);
+  if (!parsedPatch.success || parsedPatch.value?.currency !== undefined) return false;
+  // Compile the real NetworkKit adapter; ordinary acceptance does not contact a server.
+  const stats = new HttpValidationStats();
+  const httpRule = createHttpRule('http://10.0.2.2:18743', stats);
+  if (httpRule === undefined || stats.active !== 0) return false;
   const safe = guarded(liteV.array(liteV.number()), { maxDepth: 2, maxNodes: 5 });
   if (!safe.parse([1, 2]).success || safe.validate([1, 2, 3, 4, 5]).valid) return false;
   const circular: Record<string, Object> = {}; circular['self'] = circular;

@@ -2,6 +2,10 @@
 
 > 鸿蒙 ArkTS 声明式表单/数据校验库。链式 API，内置手机号、身份证、银行卡等**中国本地化规则**，开箱即用。
 
+开源仓库：[GitHub](https://github.com/lxshwyan/harmony-validator) · [Gitee](https://gitee.com/lxsh_wyan/harmony-validator)
+
+开发中的新增能力与边界见[行为说明](https://gitee.com/lxsh_wyan/harmony-validator/blob/master/doc/BEHAVIOR-COMPATIBILITY.md)，尚未发布到 OHPM。
+
 ## 1.3.1
 
 1.3.1 是兼容性维护版本：增加 API 12/API 23 双目标消费构建，测试依赖升级至 Hypium 1.0.29，并补齐仓库根许可证。公共 API 与 1.3.0 相同。

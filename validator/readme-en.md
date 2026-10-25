@@ -2,6 +2,10 @@
 
 > A declarative form / data validation library for HarmonyOS (ArkTS). Chainable API with built-in **China-localized rules** (mobile number, ID card, bank card, and more) — ready to use out of the box.
 
+Source: [GitHub](https://github.com/lxshwyan/harmony-validator) · [Gitee](https://gitee.com/lxsh_wyan/harmony-validator)
+
+Unreleased additions and limits: [behavior notes](https://github.com/lxshwyan/harmony-validator/blob/master/doc/BEHAVIOR-COMPATIBILITY.md). These additions are not on OHPM yet.
+
 ## 1.3.1
 
 1.3.1 is a compatibility maintenance release. It adds API 12/API 23 consumer builds, upgrades the test dependency to Hypium 1.0.29, and adds a repository-root license. Its public API is unchanged from 1.3.0.

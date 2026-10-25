@@ -8,7 +8,7 @@ import { ErrorCode, issue, validationError } from '../core/i18n';
 import { DefaultSchema, NullableSchema, parseSchema, parseSchemaAsync, TransformSchema } from './EffectSchemas';
 
 /** 对象形状：字段名 -> 对应字段的校验器。 */
-export type SchemaShape = Record<string, AnySchema>;
+export type SchemaShape = Record<string, AnySchema<Object | null | undefined>>;
 
 /** 跨字段规则：拿到整个对象判断，返回 true 通过。 */
 interface RefineRule {
@@ -345,12 +345,12 @@ export class ObjectSchema<T extends Object = Record<string, Object>> implements 
       for (const key of Object.keys(data)) output[key] = data[key];
     }
     const keys = Object.keys(this.shape);
-    const tasks: Array<Promise<ParseResult<Object>>> = [];
+    const tasks: Array<Promise<ParseResult<Object | null | undefined>>> = [];
     const activeKeys: Array<string> = [];
     for (const key of keys) {
       if (!this.isFieldOptional(key, data)) {
         activeKeys.push(key);
-        tasks.push(parseSchemaAsync<Object>(this.shape[key], data[key], data, options));
+        tasks.push(parseSchemaAsync<Object | null | undefined>(this.shape[key], data[key], data, options));
       }
     }
     const results = await Promise.all(tasks);

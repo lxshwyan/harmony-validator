@@ -40,14 +40,19 @@ schema.validate({ 'name': '张', 'phone': '123', 'age': 16 });
 
 ## 开发验证
 
+当前源码基于 1.3.1，新增 SchemaFactory 可选入口、模型/Schema 单一来源生成工具、JS/TS 标准接口桥接和真实 HTTP 取消验证。尚未发布新版本；用法和限制见 [行为与兼容性说明](doc/BEHAVIOR-COMPATIBILITY.md)。
+
 ```bash
 ./scripts/verify.sh
 ```
+
+验证包含工具层的锁定开发依赖安装、生成文件一致性检查、真实回环 HTTP、Hypium、HAR 门槛以及 API12/API23 消费编译。模拟器网络验收另见 [开发验证记录](doc/VALIDATION-STABILITY.md)，真机未验收。
 
 当前版本为 `1.3.1`。本次补丁增加 API 12/API 23 消费构建门禁、升级测试依赖并补齐仓库根许可证，保持 1.3 公共 API 不变。见 [1.3.1 发布说明](doc/RELEASE-1.3.1.md)与 [1.3.0 功能指南](doc/ADVANCED-1.3.0.md)。OHPM 可用性以平台审核结果为准。
 
 ## 链接
 
+- 开源仓库：[GitHub](https://github.com/lxshwyan/harmony-validator) · [Gitee](https://gitee.com/lxsh_wyan/harmony-validator)
 - OHPM 包详情：https://ohpm.openharmony.cn/#/cn/detail/@hmkit%2Fvalidator
 - 库文档：[validator/README.md](./validator/README.md) · [English](./validator/readme-en.md)
 

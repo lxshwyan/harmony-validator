@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "name": "Order",
+  "schema": {
+    "kind": "object", "required": true,
+    "properties": {
+      "customer": {"kind": "string", "required": true, "min": 1, "transform": "trim"},
+      "note": {"kind": "string", "required": true, "nullable": true},
+      "quantity": {"kind": "number", "required": true, "min": 1, "integer": true},
+      "currency": {"kind": "string", "required": true, "default": "CNY"},
+      "referenceLength": {"kind": "string", "required": true, "transform": "length"},
+      "items": {
+        "kind": "array", "required": true, "min": 1,
+        "items": {
+          "kind": "object", "required": true,
+          "properties": {
+            "sku": {"kind": "string", "required": true},
+            "price": {"kind": "number", "required": true, "min": 0}
+          }
+        }
+      }
+    }
+  }
+}

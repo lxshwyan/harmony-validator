@@ -13,6 +13,9 @@
 .planning/
 /external-consumer/entry/src/main/ets/pages/Index.ets
 /external-consumer/entry/src/main/ets/pages/ConsumerScenarios.ets
+/external-consumer/entry/src/main/ets/pages/Order.generated.ets
+/external-consumer/entry/src/main/ets/pages/HttpValidation.ets
+/external-consumer/entry/src/main/ets/pages/NetworkScenarios.ets
 
 # IDE
 /.idea/
@@ -31,3 +34,4 @@ mykey.pub
 # OS
 .DS_Store
 **/.DS_Store
+tooling/node_modules/

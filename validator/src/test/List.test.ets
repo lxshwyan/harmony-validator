@@ -19,8 +19,10 @@ import v120Test from './V120.test';
 
 import v120ExpansionTest from './V120Expansion.test';
 import v130Test from './V130.test';
+import reuseTest from './Reuse.test';
 
 export default function testsuite(): void {
+  reuseTest();
   v130Test();
   v120ExpansionTest();
   validatorTest();

@@ -2,6 +2,7 @@ import { v as liteV, validateValueAsync, validateBatchAsync, deepPartialSchema, 
 import { uuidRule } from '@hmkit/validator/rules/uuid';
 import { ValidationCancellationToken } from '@hmkit/validator/execution';
 import { runFeatureScenarios } from './ConsumerScenarios';
+import { runNetworkScenarios, runExitScenario } from './NetworkScenarios';
 
 @Entry
 @Component
@@ -10,7 +11,22 @@ struct Index {
   @State busy: boolean = false;
   private pageToken: ValidationCancellationToken = new ValidationCancellationToken();
   aboutToAppear(): void { this.check(); }
+  onPageShow(): void { this.check(); }
+  onPageHide(): void { this.pageToken.cancel(); this.busy = false; }
   aboutToDisappear(): void { this.pageToken.cancel(); }
+  async checkHttp(exitOnly: boolean = false): Promise<void> {
+    if (this.busy) return;
+    this.busy = true; this.pageToken = new ValidationCancellationToken();
+    const token = this.pageToken; this.status = 'HTTP running';
+    try {
+      if (exitOnly) await runExitScenario(token, (): void => { this.status = 'HTTP request active'; });
+      else {
+        const passed = await runNetworkScenarios(token);
+        if (!token.isCancelled()) this.status = passed ? 'PASS HTTP consumer' : 'FAIL HTTP consumer';
+      }
+    } catch (error) { if (!token.isCancelled()) this.status = `FAIL HTTP: ${(error as Error).message}`; }
+    finally { if (this.pageToken === token) this.busy = false; }
+  }
   async check(): Promise<void> {
     if (this.busy) return;
     this.busy = true;
@@ -27,12 +43,14 @@ struct Index {
       partial.validate({} as Record<string, Object>).valid && await runFeatureScenarios(runToken);
     if (!runToken.isCancelled()) this.status = passed ? 'PASS 1.3 consumer' : 'FAIL 1.3 consumer';
     } catch (_error) { if (!runToken.isCancelled()) this.status = 'FAIL 1.3 consumer: exception'; }
-    finally { this.busy = false; }
+    finally { if (this.pageToken === runToken) this.busy = false; }
   }
   build() {
     Column() {
       Text(this.status).id('validator_consumer_status')
       Button('Run acceptance').enabled(!this.busy).onClick(() => { this.check(); })
+      Button('Run HTTP acceptance').enabled(!this.busy).onClick(() => { this.checkHttp(); })
+      Button('Start HTTP exit check').enabled(!this.busy).onClick(() => { this.checkHttp(true); })
       Button('Cancel pending request').onClick(() => { this.pageToken.cancel(); this.status = 'Cancelled'; })
     }
   }

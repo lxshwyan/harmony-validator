@@ -32,7 +32,7 @@ done
 test -f "${HAR}" || { echo "Release HAR not found: ${HAR}" >&2; exit 1; }
 tar -tzf "${HAR}" | rg -q '^package/Index\.d\.ets$'
 tar -tzf "${HAR}" | rg -q '^package/lite\.d\.ets$'
-for entry in interop execution composition form safety collections; do
+for entry in interop execution composition form safety collections reuse; do
   tar -tzf "${HAR}" | rg -q "^package/${entry}\\.d\\.ets$"
   if rg -n 'rules/registerAll|src/main/ets/index' "${ROOT_DIR}/validator/${entry}.ets"; then
     echo "Optional entry ${entry} must not load the main factory." >&2

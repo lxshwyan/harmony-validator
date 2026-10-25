@@ -8,6 +8,7 @@ source "${SCRIPT_DIR}/env.sh"
 
 cd "${PROJECT_DIR}"
 "${OHPM}" install
+bash "${SCRIPT_DIR}/verify-tooling.sh"
 "${SCRIPT_DIR}/test-local.sh"
 "${SCRIPT_DIR}/build-release.sh"
 "${SCRIPT_DIR}/check-modular-rules.sh"

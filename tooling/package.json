@@ -1,0 +1,6 @@
+{
+  "name": "hmkit-validator-development-tools",
+  "private": true,
+  "type": "module",
+  "devDependencies": { "@standard-schema/spec": "1.1.0" }
+}
