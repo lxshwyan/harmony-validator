@@ -40,7 +40,8 @@
 
 ## 发布状态
 
-- OHPM：预发布校验已通过；签名私钥需要本机交互输入口令，上传尚未成功提交。可在交互终端执行 `bash scripts/publish-local.sh` 并输入口令；截至当前查询，公开 latest 为 1.3.1，且没有 1.4.0，不能宣称已上架。
+- OHPM：2026-10-27 核对公开注册表，latest 为 1.4.0，版本元数据及 HAR 均可访问，已公开上架。下载 163289 字节，注册表 SHA-512 integrity 校验通过，SHA-256 与上文发布包一致。
+- 公开安装：在临时独立工程执行 `ohpm install --all`，依赖锁定 `@hmkit/validator@1.4.0`，安装完成；版本元数据为 1.4.0，安装的 modules.abc 与公开下载 HAR 一致。核验后移除临时工程，未改变现有消费工程依赖。
 - GitHub / Gitee：1.4.0 源码与标签均已同步；两站 v1.4.0 均指向 `a8128d426589769c397f631a4be07f1830c2a714`。[GitHub Release](https://github.com/lxshwyan/harmony-validator/releases/tag/v1.4.0) 已提供 HAR 与 SHA256SUMS。
 - 从公开下载地址重新下载 HAR，SHA-256 与本地发布包一致，cmp 字节比对通过。自托管 runner 当前无在线实例，标签触发的排队发布已请求取消，避免后续与本机交互发布重复。
 - prepublish 只校验包内容，不表示发布认证、平台审核或公开可安装已完成，见[华为官方说明](https://developer.huawei.com/consumer/cn/doc/doccenter-deveco-studio/ide-hmos-ohpm-prepublish)。

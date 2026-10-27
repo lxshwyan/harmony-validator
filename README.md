@@ -7,7 +7,7 @@
 
 ## 安装
 
-1.4.0 源码与 HAR 下载见 [Releases](https://github.com/lxshwyan/harmony-validator/releases/tag/v1.4.0)。OHPM 1.4.0 尚未上架时请使用 1.3.1；1.4.0 公开状态见 [发布验证报告](doc/VALIDATION-1.4.0.md)。以下为上架后的新版安装命令。
+1.4.0 已在 OHPM 公开上架，安装与下载校验于 2026-10-27 通过。源码与 HAR 下载见 [Releases](https://github.com/lxshwyan/harmony-validator/releases/tag/v1.4.0)，详情见 [发布验证报告](doc/VALIDATION-1.4.0.md)。
 
 ```bash
 ohpm i @hmkit/validator@1.4.0
